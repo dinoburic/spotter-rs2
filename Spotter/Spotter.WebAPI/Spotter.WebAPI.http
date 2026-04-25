@@ -1,0 +1,6 @@
+@Spotter.WebAPI_HostAddress = http://localhost:5126
+
+GET {{Spotter.WebAPI_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

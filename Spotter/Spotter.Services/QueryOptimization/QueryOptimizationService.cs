@@ -22,54 +22,13 @@ namespace Spotter.Services.QueryOptimization
         }
 
 
-        public async Task<ProductResponse> AsNoTrackingBadQuerry()
-        {
-           var product = await _dbContext.Products.FirstAsync();
+       
 
-            product.Name = "Updated Name";
+       
 
-            foreach (var entries in _dbContext.ChangeTracker.Entries())
-            {
-                var entity = entries.Entity;
-                var state = entries.State;
-            }
+      
 
-            return mapper.Map<ProductResponse>(product);
-
-        }
-
-        public async Task<ProductResponse> AsNoTrackingGoodQuerry()
-        {
-            var product = await _dbContext.Products.AsNoTracking().FirstAsync();
-
-            product.Name = "Updated Name";
-
-            foreach (var entries in _dbContext.ChangeTracker.Entries())
-            {
-                var entity = entries.Entity;
-                var state = entries.State;
-            }
-
-            return mapper.Map<ProductResponse>(product);
-        }
-
-        public async Task<List<ProductResponse>> GetFilteredProductsBadQuerry()
-        {
-            var products = await _dbContext.Products.ToListAsync();
-
-            var expensiveProducts = products.Where(p => p.Price > 400).ToList();
-
-            return expensiveProducts.Select(p => mapper.Map<ProductResponse>(p)).ToList();
-        }
-
-        public async Task<List<ProductResponse>> GetFilteredProductsGoodQuerry()
-        {
-            var products = _dbContext.Products;
-
-            var expensiveProducts = await products.Where(p => p.Price > 400).ToListAsync();
-
-            return expensiveProducts.Select(p => mapper.Map<ProductResponse>(p)).ToList();
-        }
+        
 
         public async Task<List<string>> GetFullNamesBadQuerry()
         {
@@ -108,15 +67,5 @@ namespace Spotter.Services.QueryOptimization
             return userResponses;
         }
 
-        public async Task<List<ProductResponse>> UsingSqlQueries()
-        {
-            var products = await _dbContext.Products
-                .FromSqlRaw("SELECT * FROM Products as P WHERE P.Price > 300")
-                .ToListAsync();
-
-            var productResponses = products.Select(u => mapper.Map<ProductResponse>(u)).ToList();
-
-            return productResponses;
-        }
     }
 }

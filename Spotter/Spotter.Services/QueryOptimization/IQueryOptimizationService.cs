@@ -9,14 +9,10 @@ namespace Spotter.Services.QueryOptimization
 {
     public interface IQueryOptimizationService
     {
-        Task<ProductResponse> AsNoTrackingBadQuerry();
-        Task<ProductResponse> AsNoTrackingGoodQuerry();
-        Task<List<ProductResponse>> GetFilteredProductsBadQuerry();
-        Task<List<ProductResponse>> GetFilteredProductsGoodQuerry();
+        
         Task<List<string>> GetFullNamesBadQuerry();
         Task<List<string>> GetFullNamesGoodQuerry();
         Task<List<UserResponse>> SplittingQueries();
-        Task<List<ProductResponse>> UsingSqlQueries();
         
         
     }

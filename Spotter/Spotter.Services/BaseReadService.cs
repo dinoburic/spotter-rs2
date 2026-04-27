@@ -1,11 +1,13 @@
+using Microsoft.EntityFrameworkCore;
+using Spotter.Model.Exceptions;
 using Spotter.Model.Responses;
 using Spotter.Model.SearchObjects;
 using Spotter.Services.Database;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
 using System.Linq.Dynamic.Core;
+using System.Threading.Tasks;
 
 namespace Spotter.Services
 {
@@ -22,69 +24,62 @@ namespace Spotter.Services
             _dbContext = dbContext;
         }
 
-
-        /// <summary>
-        /// Applies search filters to the query. Override in derived classes to implement specific filtering logic.
-        /// </summary>
-        protected abstract IEnumerable<TEntity> ApplyFilters(IEnumerable<TEntity> query, TSearch? search);
+        protected abstract IQueryable<TEntity> ApplyFilters(IQueryable<TEntity> query, TSearch? search);
 
         public virtual async Task<PageResult<TResponse>> GetAllAsync(TSearch? search = null)
         {
-            IEnumerable<TEntity> query = this._dbContext.Set<TEntity>();
+            IQueryable<TEntity> query = _dbContext.Set<TEntity>();
 
-            query = await IncludeRelatedEntitiesAsync(search, query.AsQueryable());
+            query = await IncludeRelatedEntitiesAsync(search, query);
             query = ApplyFilters(query, search);
 
             int? totalCount = null;
 
             if (search.IncludeTotalCount ?? false)
             {
-                totalCount = query.Count();
+                totalCount = await query.CountAsync();
             }
 
             if (!string.IsNullOrWhiteSpace(search.SortBy))
             {
-                //TODO: parametrize sortBy to prevent SQL injection
-                query = query.AsQueryable().OrderBy(search.SortBy);
+                query = query.OrderBy(search.SortBy);
             }
+
+            var pageSize = search.PageSize.HasValue
+                ? Math.Min(search.PageSize.Value, 100)
+                : 20;
 
             if (search.Page.HasValue)
             {
-                query = query.Skip((search.Page.Value - 1) * search.PageSize.Value);
+                query = query.Skip((search.Page.Value - 1) * pageSize);
             }
 
-            if (search.PageSize.HasValue)
-            {
-                query = query.Take(search.PageSize.Value);
-            }
+            query = query.Take(pageSize);
 
-            var list = query.Select(item => _mapper.Map<TResponse>(item)).ToList();
+            var entities = await query.ToListAsync();
+            var list = entities.Select(item => _mapper.Map<TResponse>(item)).ToList();
 
-            var pageResult = new PageResult<TResponse>
+            return new PageResult<TResponse>
             {
                 Items = list,
                 TotalCount = totalCount
             };
-
-            return await Task.FromResult(pageResult);
         }
 
         protected virtual async Task<IQueryable<TEntity>> IncludeRelatedEntitiesAsync(TSearch? search, IQueryable<TEntity> query = null)
         {
-            // Override in derived classes to include related entities if necessary
             return query;
         }
 
-
         public virtual async Task<TResponse> GetByIdAsync(int id)
         {
-            var entity = this._dbContext.Set<TEntity>().Find(id);
+            var entity = await _dbContext.Set<TEntity>().FindAsync(id);
             if (entity == null)
             {
-                throw new KeyNotFoundException($"{typeof(TEntity).Name} with id {id} not found.");
+                throw new NotFoundException($"{typeof(TEntity).Name} with id {id} not found.");
             }
 
-            return await Task.FromResult(_mapper.Map<TResponse>(entity));
+            return _mapper.Map<TResponse>(entity);
         }
     }
 }

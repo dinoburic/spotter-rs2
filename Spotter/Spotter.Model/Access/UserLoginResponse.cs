@@ -1,15 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Spotter.Model.Access
+﻿namespace Spotter.Model.Access
 {
     public class UserLoginResponse
     {
-        public string Accesstoken { get; set; } = string.Empty;
-        public string Refreshtoken { get; set; } = string.Empty;
-
+        public string AccessToken { get; set; } = string.Empty;
+        public string RefreshToken { get; set; } = string.Empty;
+        public int UserId { get; set; }
+        public string Username { get; set; } = string.Empty;
+        public string Role { get; set; } = string.Empty;
     }
 }

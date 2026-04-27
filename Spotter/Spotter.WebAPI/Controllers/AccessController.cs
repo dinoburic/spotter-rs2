@@ -1,44 +1,50 @@
-﻿using Azure;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Spotter.Model.Access;
 using Spotter.Model.Requests;
 using Spotter.Services;
-using Spotter.WebAPI.Services.AccessManager;
-using Microsoft.AspNetCore.Mvc;
 
 namespace Spotter.WebAPI.Controllers
 {
     [ApiController]
-    [Route("[controller]")]
-    public class AccessController : Controller
+    [Route("api/access")]
+    [AllowAnonymous]
+    public class AccessController : ControllerBase
     {
-        private readonly IAccessManager _accessManager;
-        private readonly IUserService _userService;
+        private readonly IAccessService _accessService;
 
-        public AccessController(IAccessManager accessManager, IUserService userService)
+        public AccessController(IAccessService accessService)
         {
-            _accessManager = accessManager;
-            _userService = userService;
+            _accessService = accessService;
         }
 
-        [HttpPost("Login")]
-        public async Task<ActionResult> Login([FromBody] UserLoginRequest request)
+        [HttpPost("login")]
+        public async Task<ActionResult<UserLoginResponse>> Login([FromBody] UserLoginRequest request)
         {
-            var result = await _accessManager.LoginAsync(request);
+            var result = await _accessService.LoginAsync(request);
             return Ok(result);
         }
 
-        [HttpPost("LoginWithRefreshToken")]
-        public async Task<ActionResult> LoginWithRefreshToken([FromBody] RefreshAccessTokenRequest request)
+        [HttpPost("refresh")]
+        public async Task<ActionResult<UserLoginResponse>> Refresh([FromBody] RefreshAccessTokenRequest request)
         {
-            var result = await _accessManager.LoginWithRefreshTokenAsync(request);
+            var result = await _accessService.LoginWithRefreshTokenAsync(request.RefreshToken);
             return Ok(result);
         }
 
-        [HttpPost("Register")]
-        public async Task<IActionResult> Register([FromBody] UserInsertRequest request)
+        [HttpPost("logout")]
+        public async Task<IActionResult> Logout([FromBody] RefreshAccessTokenRequest request)
         {
-            await _userService.InsertAsync(request);
-            return Ok("You have registered successfully");
+            var accessToken = Request.Headers.Authorization.ToString().Replace("Bearer ", "");
+            await _accessService.LogoutAsync(accessToken, request.RefreshToken);
+            return NoContent();
+        }
+
+        [HttpPost("register")]
+        public async Task<ActionResult<UserLoginResponse>> Register([FromBody] RegisterRequest request)
+        {
+            var result = await _accessService.RegisterAsync(request);
+            return Created(string.Empty, result);
         }
     }
 }

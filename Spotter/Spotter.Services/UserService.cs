@@ -1,17 +1,13 @@
+using FluentValidation;
+using Microsoft.EntityFrameworkCore;
 using Spotter.Common.Services.CryptoService;
-using Spotter.Model.Access;
 using Spotter.Model.Exceptions;
 using Spotter.Model.Requests;
 using Spotter.Model.Responses;
 using Spotter.Model.SearchObjects;
 using Spotter.Services.Database;
-using FluentValidation;
-using Microsoft.EntityFrameworkCore;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Spotter.Services
@@ -19,38 +15,29 @@ namespace Spotter.Services
     public class UserService : BaseCRUDService<User, UserResponse, UserSearch, UserInsertRequest, UserUpdateRequest>, IUserService
     {
         private readonly ICryptoService _cryptoService;
+
         public UserService(SpotterDbContext dbContext, MapsterMapper.IMapper mapper, IValidator<UserInsertRequest> insertValidator, IValidator<UserUpdateRequest> updateValidator, ICryptoService cryptoService)
             : base(dbContext, mapper, insertValidator, updateValidator)
         {
             _cryptoService = cryptoService;
         }
 
-
-        protected override IEnumerable<User> ApplyFilters(IEnumerable<User> query, UserSearch? search)
+        protected override IQueryable<User> ApplyFilters(IQueryable<User> query, UserSearch? search)
         {
-            if (search != null)
-            {
-                if (!string.IsNullOrWhiteSpace(search.Email))
-                {
-                    query = query.Where(u => u.Email.Contains(search.Email, StringComparison.OrdinalIgnoreCase));
-                }
+            if (search == null)
+                return query;
 
-                if (!string.IsNullOrWhiteSpace(search.Username))
-                {
-                    query = query.Where(u => u.Username.Contains(search.Username, StringComparison.OrdinalIgnoreCase));
-                }
+            if (!string.IsNullOrWhiteSpace(search.Email))
+                query = query.Where(u => u.Email.Contains(search.Email));
 
-                if (!string.IsNullOrWhiteSpace(search.Name))
-                {
-                    query = query.Where(u => u.FirstName.Contains(search.Name, StringComparison.OrdinalIgnoreCase)
-                                          || u.LastName.Contains(search.Name, StringComparison.OrdinalIgnoreCase));
-                }
+            if (!string.IsNullOrWhiteSpace(search.Username))
+                query = query.Where(u => u.Username.Contains(search.Username));
 
-                if (search.IsActive.HasValue)
-                {
-                    query = query.Where(u => u.IsActive == search.IsActive.Value);
-                }
-            }
+            if (!string.IsNullOrWhiteSpace(search.Name))
+                query = query.Where(u => u.FirstName.Contains(search.Name) || u.LastName.Contains(search.Name));
+
+            if (search.IsActive.HasValue)
+                query = query.Where(u => u.IsActive == search.IsActive.Value);
 
             return query;
         }
@@ -58,31 +45,21 @@ namespace Spotter.Services
         protected override User MapInsertRequestToEntity(UserInsertRequest request)
         {
             var entity = base.MapInsertRequestToEntity(request);
-
-            // Handle password hashing for User entity
             var salt = _cryptoService.GenerateSlat();
             entity.PasswordSalt = salt;
             entity.PasswordHash = _cryptoService.GenerateHash(request.Password, salt);
-
             return entity;
         }
 
         public override async Task<UserResponse> InsertAsync(UserInsertRequest request)
         {
-            // let FluentValidation throw if the request isn't valid; the exception filter will
-            // convert the resulting ValidationException into the standard error format.
             await _insertValidator.ValidateAndThrowAsync(request);
 
-            // Check if email or username already exists
             if (await _dbContext.Users.AnyAsync(u => u.Email == request.Email))
-            {
-                throw new InvalidOperationException($"Email '{request.Email}' is already in use.");
-            }
+                throw new ClientException($"Email '{request.Email}' is already in use.");
 
             if (await _dbContext.Users.AnyAsync(u => u.Username == request.Username))
-            {
-                throw new InvalidOperationException($"Username '{request.Username}' is already in use.");
-            }
+                throw new ClientException($"Username '{request.Username}' is already in use.");
 
             var entity = MapInsertRequestToEntity(request);
             entity.CreatedAt = DateTime.UtcNow;
@@ -93,27 +70,19 @@ namespace Spotter.Services
             return _mapper.Map<UserResponse>(entity);
         }
 
-
         public override async Task<UserResponse> UpdateAsync(int id, UserUpdateRequest request)
         {
             await _updateValidator.ValidateAndThrowAsync(request);
 
             var entity = await _dbContext.Users.FindAsync(id);
             if (entity == null)
-            {
-                throw new KeyNotFoundException($"User with id {id} not found.");
-            }
+                throw new NotFoundException($"User with id {id} not found.");
 
-            // Check if email or username already exists
             if (await _dbContext.Users.AnyAsync(u => u.Email == request.Email && u.Id != id))
-            {
-                throw new InvalidOperationException($"Email '{request.Email}' is already in use.");
-            }
+                throw new ClientException($"Email '{request.Email}' is already in use.");
 
             if (await _dbContext.Users.AnyAsync(u => u.Username == request.Username && u.Id != id))
-            {
-                throw new InvalidOperationException($"Username '{request.Username}' is already in use.");
-            }
+                throw new ClientException($"Username '{request.Username}' is already in use.");
 
             MapUpdateRequestToEntity(request, entity);
 
@@ -127,9 +96,7 @@ namespace Spotter.Services
         {
             var entity = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == id);
             if (entity == null)
-            {
-                throw new KeyNotFoundException($"User with id {id} not found.");
-            }
+                throw new NotFoundException($"User with id {id} not found.");
 
             _dbContext.Users.Remove(entity);
             await _dbContext.SaveChangesAsync();
@@ -143,33 +110,27 @@ namespace Spotter.Services
                 .ThenInclude(ur => ur.Role)
                 .FirstOrDefaultAsync(u => u.Username == username);
 
-            UserSensitveResponse? response = null;
+            if (user == null)
+                return null;
 
-            if (user != null)
-            {
-                response = _mapper.Map<UserSensitveResponse>(user);
-                response.Role = user.UserRoles.FirstOrDefault()?.Role.Name;
-            }
-
+            var response = _mapper.Map<UserSensitveResponse>(user);
+            response.Role = user.UserRoles.FirstOrDefault()?.Role.Name;
             return response;
         }
 
         public async Task<UserResponse?> GetWithRoleByIdAsync(int id)
         {
             var user = await _dbContext.Users
-               .AsNoTracking()
-               .Include(u => u.UserRoles)
-               .ThenInclude(ur => ur.Role)
-               .FirstOrDefaultAsync(u => u.Id == id);
+                .AsNoTracking()
+                .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
+                .FirstOrDefaultAsync(u => u.Id == id);
 
-            UserResponse? response = null;
+            if (user == null)
+                return null;
 
-            if (user != null)
-            {
-                response = _mapper.Map<UserResponse>(user);
-                response.Role = user.UserRoles.First().Role.Name;
-            }
-
+            var response = _mapper.Map<UserResponse>(user);
+            response.Role = user.UserRoles.First().Role.Name;
             return response;
         }
     }

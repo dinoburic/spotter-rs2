@@ -3,14 +3,12 @@ version: '3.8'
 services:
   ecomm-fit-2026:
     image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: ecomm-fit-2026
+    container_name: spotter
     environment:
-      ACCEPT_EULA: Y
-      SA_PASSWORD: qweasd123!
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=qweasd123!
     ports:
       - "1435:1433"
-    expose:
-      - "1433"
     volumes:
       - sqlserver_data:/var/opt/mssql
 

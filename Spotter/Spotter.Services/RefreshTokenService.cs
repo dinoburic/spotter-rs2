@@ -26,7 +26,7 @@ namespace Spotter.Services
 
             if (token == null)
             {
-                throw new ClinetException("Refresh token not found.");
+                throw new ClientException("Refresh token not found.");
             }
 
             return token;

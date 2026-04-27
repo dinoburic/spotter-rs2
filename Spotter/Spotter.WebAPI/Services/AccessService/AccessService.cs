@@ -10,16 +10,16 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace Spotter.WebAPI.Services.AccessManager
+namespace Spotter.WebAPI.Services.AccessService
 {
-    public class AccessManager : IAccessManager
+    public class AccessService : IAccessService
     {
         private readonly IUserService _userService;
         private readonly IConfiguration _configuration;
         private readonly ICryptoService _cryptoService;
         private readonly IRefreshTokenService _refreshTokenService;
 
-        public AccessManager(IUserService userService, IConfiguration configuration, ICryptoService cryptoService, IRefreshTokenService refreshTokenService)
+        public AccessService(IUserService userService, IConfiguration configuration, ICryptoService cryptoService, IRefreshTokenService refreshTokenService)
         {
             _userService = userService;
             _configuration = configuration;
@@ -57,8 +57,8 @@ namespace Spotter.WebAPI.Services.AccessManager
 
             return new UserLoginResponse
             {
-                Accesstoken = accessToken,
-                Refreshtoken = refreshTokenValue
+                AccessToken = accessToken,
+                RefreshToken = refreshTokenValue
             };
         }
 
@@ -66,31 +66,31 @@ namespace Spotter.WebAPI.Services.AccessManager
         {
             if (string.IsNullOrEmpty(request.RefreshToken))
             {
-                throw new ClinetException("Refresh token is required");
+                throw new ClientException("Refresh token is required");
             }
 
             var refreshToken = await _refreshTokenService.GetStoredTokenAsync(request.RefreshToken);
 
             if (refreshToken == null)
             {
-                throw new ClinetException("Invalid refresh token");
+                throw new ClientException("Invalid refresh token");
             }
 
             if (refreshToken.ExpiresAt < DateTime.UtcNow)
             {
-                throw new ClinetException("Refresh token has expired");
+                throw new ClientException("Refresh token has expired");
             }
 
             var user = await _userService.GetWithRoleByIdAsync(refreshToken.UserId);
 
             if (user == null)
             {
-                throw new ClinetException("User not found");
+                throw new ClientException("User not found");
             }
 
             if (!user.IsActive)
             {
-                throw new ClinetException("User is not active");
+                throw new ClientException("User is not active");
             }
 
             await _refreshTokenService.DeleteAllUserRefreshTokensAsync(user.Id);
@@ -109,8 +109,8 @@ namespace Spotter.WebAPI.Services.AccessManager
 
             return new UserLoginResponse
             {
-                Accesstoken = accessToken,
-                Refreshtoken = refreshTokenValue
+                AccessToken = accessToken,
+                RefreshToken = refreshTokenValue
             };
 
         }

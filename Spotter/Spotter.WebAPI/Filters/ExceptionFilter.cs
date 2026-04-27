@@ -30,7 +30,12 @@ namespace Spotter.WebAPI.Filters
 
                 context.HttpContext.Response.StatusCode = (int)HttpStatusCode.BadRequest;
             }
-            else if (context.Exception is ClinetException)
+            else if (context.Exception is NotFoundException)
+            {
+                context.ModelState.AddModelError("notFound", context.Exception.Message);
+                context.HttpContext.Response.StatusCode = (int)HttpStatusCode.NotFound;
+            }
+            else if (context.Exception is ClientException)
             {
                 context.ModelState.AddModelError("clientError", context.Exception.Message);
                 context.HttpContext.Response.StatusCode = (int)HttpStatusCode.BadRequest;

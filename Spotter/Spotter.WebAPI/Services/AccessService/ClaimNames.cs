@@ -1,4 +1,4 @@
-﻿namespace Spotter.WebAPI.Services.AccessManager
+﻿namespace Spotter.WebAPI.Services.AccessService
 {
     public class ClaimNames
     {

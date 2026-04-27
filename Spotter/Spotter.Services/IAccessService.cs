@@ -1,0 +1,13 @@
+using Spotter.Model.Access;
+using Spotter.Model.Requests;
+
+namespace Spotter.Services
+{
+    public interface IAccessService
+    {
+        Task<UserLoginResponse> LoginAsync(UserLoginRequest request);
+        Task<UserLoginResponse> LoginWithRefreshTokenAsync(string refreshToken);
+        Task LogoutAsync(string accessToken, string refreshToken);
+        Task<UserLoginResponse> RegisterAsync(RegisterRequest request);
+    }
+}

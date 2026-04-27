@@ -1,14 +1,9 @@
-﻿
-namespace Spotter.Model.Exceptions
+﻿namespace Spotter.Model.Exceptions
 {
-    public class ClinetException : Exception
+    public class ClientException : Exception
     {
-        public ClinetException(string message) : base(message)
-        {
-            
-        }
+        public ClientException(string message) : base(message) { }
 
-        public ClinetException(string message, Exception inner) : base(message, inner) { }
-       
+        public ClientException(string message, Exception inner) : base(message, inner) { }
     }
 }

@@ -1,4 +1,4 @@
-﻿using Spotter.WebAPI.Services.AccessManager;
+﻿using Spotter.WebAPI.Services.AccessService;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 

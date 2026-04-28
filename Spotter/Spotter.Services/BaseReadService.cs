@@ -3,11 +3,7 @@ using Spotter.Model.Exceptions;
 using Spotter.Model.Responses;
 using Spotter.Model.SearchObjects;
 using Spotter.Services.Database;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Linq.Dynamic.Core;
-using System.Threading.Tasks;
 
 namespace Spotter.Services
 {
@@ -35,21 +31,21 @@ namespace Spotter.Services
 
             int? totalCount = null;
 
-            if (search.IncludeTotalCount ?? false)
+            if (search?.IncludeTotalCount ?? false)
             {
                 totalCount = await query.CountAsync();
             }
 
-            if (!string.IsNullOrWhiteSpace(search.SortBy))
+            if (!string.IsNullOrWhiteSpace(search?.SortBy))
             {
                 query = query.OrderBy(search.SortBy);
             }
 
-            var pageSize = search.PageSize.HasValue
-                ? Math.Min(search.PageSize.Value, 100)
+            var pageSize = search?.PageSize.HasValue == true
+                ? Math.Min(search.PageSize!.Value, 100)
                 : 20;
 
-            if (search.Page.HasValue)
+            if (search?.Page.HasValue == true)
             {
                 query = query.Skip((search.Page.Value - 1) * pageSize);
             }
@@ -66,9 +62,9 @@ namespace Spotter.Services
             };
         }
 
-        protected virtual async Task<IQueryable<TEntity>> IncludeRelatedEntitiesAsync(TSearch? search, IQueryable<TEntity> query = null)
+        protected virtual Task<IQueryable<TEntity>> IncludeRelatedEntitiesAsync(TSearch? search, IQueryable<TEntity> query)
         {
-            return query;
+            return Task.FromResult(query);
         }
 
         public virtual async Task<TResponse> GetByIdAsync(int id)

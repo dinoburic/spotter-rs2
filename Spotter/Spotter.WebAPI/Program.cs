@@ -32,19 +32,31 @@ builder.Services.AddMapster();
 TypeAdapterConfig<Category, CategoryResponse>.NewConfig().IgnoreNullValues(true);
 TypeAdapterConfig<User, UserResponse>.NewConfig().IgnoreNullValues(true);
 TypeAdapterConfig<UserUpdateRequest, User>.NewConfig().IgnoreNullValues(true);
+TypeAdapterConfig<Venue, VenueResponse>.NewConfig()
+    .Map(dest => dest.CityName, src => src.City != null ? src.City.Name : string.Empty);
+
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IRefreshTokenService, RefreshTokenService>();
 builder.Services.AddScoped<IAccessService, AccessService>();
 builder.Services.AddScoped<ICryptoService, CryptoService>();
 builder.Services.AddScoped<IQueryOptimizationService, QueryOptimizationService>();
+builder.Services.AddScoped<ICityService, CityService>();
+builder.Services.AddScoped<ICategoryService, CategoryService>();
+builder.Services.AddScoped<IVenueService, VenueService>();
 
 builder.Services.AddScoped<IValidator<UserInsertRequest>, UserInsertValidator>();
 builder.Services.AddScoped<IValidator<UserUpdateRequest>, UserUpdateValidator>();
 builder.Services.AddScoped<IValidator<UserLoginRequest>, LoginRequestValidator>();
 builder.Services.AddScoped<IValidator<RegisterRequest>, RegisterRequestValidator>();
-
-builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IValidator<CityInsertRequest>, CityInsertRequestValidator>();
+builder.Services.AddScoped<IValidator<CityUpdateRequest>, CityUpdateRequestValidator>();
+builder.Services.AddScoped<IValidator<CategoryInsertRequest>, CategoryInsertRequestValidator>();
+builder.Services.AddScoped<IValidator<CategoryUpdateRequest>, CategoryUpdateRequestValidator>();
+builder.Services.AddScoped<IValidator<VenueInsertRequest>, VenueInsertRequestValidator>();
+builder.Services.AddScoped<IValidator<VenueUpdateRequest>, VenueUpdateRequestValidator>();
 
 builder.Services.AddOpenApi();
 

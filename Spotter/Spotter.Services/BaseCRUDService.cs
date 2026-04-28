@@ -1,13 +1,9 @@
 using FluentValidation;
 using FluentValidation.Results;
-using Mapster;
 using MapsterMapper;
 using Spotter.Model.Exceptions;
 using Spotter.Model.SearchObjects;
 using Spotter.Services.Database;
-using System;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace Spotter.Services
 {
@@ -19,7 +15,7 @@ namespace Spotter.Services
         protected readonly IValidator<TInsertRequest> _insertValidator;
         protected readonly IValidator<TUpdateRequest> _updateValidator;
 
-        protected BaseCRUDService(SpotterDbContext dbContext, MapsterMapper.IMapper mapper, IValidator<TInsertRequest> insertValidator, IValidator<TUpdateRequest> updateValidator) : base(mapper, dbContext)
+        protected BaseCRUDService(SpotterDbContext dbContext, IMapper mapper, IValidator<TInsertRequest> insertValidator, IValidator<TUpdateRequest> updateValidator) : base(mapper, dbContext)
         {
             _insertValidator = insertValidator;
             _updateValidator = updateValidator;
@@ -41,7 +37,7 @@ namespace Spotter.Services
             if (!validationResult.IsValid)
             {
                 var errors = validationResult.Errors.Select(e => _mapper.Map<ValidationFailure>(e));
-                throw new FluentValidation.ValidationException(errors);
+                throw new ValidationException(errors);
             }
 
             var entity = MapInsertRequestToEntity(request);
@@ -64,7 +60,7 @@ namespace Spotter.Services
             if (!validationResult.IsValid)
             {
                 var errors = validationResult.Errors.Select(e => _mapper.Map<ValidationFailure>(e));
-                throw new FluentValidation.ValidationException(errors);
+                throw new ValidationException(errors);
             }
 
             var entity = await _dbContext.Set<TEntity>().FindAsync(id);

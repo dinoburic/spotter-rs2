@@ -35,6 +35,59 @@ TypeAdapterConfig<UserUpdateRequest, User>.NewConfig().IgnoreNullValues(true);
 TypeAdapterConfig<Venue, VenueResponse>.NewConfig()
     .Map(dest => dest.CityName, src => src.City != null ? src.City.Name : string.Empty);
 
+TypeAdapterConfig<Event, EventResponse>.NewConfig()
+    .Map(dest => dest.CategoryName, src => src.Category != null ? src.Category.Name : string.Empty)
+    .Map(dest => dest.CategoryColorHex, src => src.Category != null ? src.Category.ColorHex : string.Empty)
+    .Map(dest => dest.VenueName, src => src.Venue != null ? src.Venue.Name : string.Empty)
+    .Map(dest => dest.CityId, src => src.Venue != null && src.Venue.City != null ? src.Venue.City.Id : 0)
+    .Map(dest => dest.CityName, src => src.Venue != null && src.Venue.City != null ? src.Venue.City.Name : string.Empty)
+    .Map(dest => dest.OrganizerName, src => src.Organizer != null ? src.Organizer.FirstName + " " + src.Organizer.LastName : string.Empty)
+    .Map(dest => dest.StatusName, src => src.Status.ToString())
+    .Map(dest => dest.AvailableCapacity, src => src.TotalCapacity - (src.TicketTypes != null ? src.TicketTypes.Sum(tt => tt.SoldQuantity) : 0));
+
+TypeAdapterConfig<TicketType, TicketTypeResponse>.NewConfig()
+    .Map(dest => dest.EventTitle, src => src.Event != null ? src.Event.Title : string.Empty)
+    .Map(dest => dest.TypeName, src => src.TypeEnum.ToString())
+    .Map(dest => dest.AvailableQuantity, src => src.TotalQuantity - src.SoldQuantity);
+
+TypeAdapterConfig<Order, OrderResponse>.NewConfig()
+    .Map(dest => dest.EventTitle, src => src.Event != null ? src.Event.Title : string.Empty)
+    .Map(dest => dest.UserFullName, src => src.User != null ? src.User.FirstName + " " + src.User.LastName : string.Empty)
+    .Map(dest => dest.StatusName, src => src.Status.ToString())
+    .Map(dest => dest.Items, src => src.OrderItems);
+
+TypeAdapterConfig<OrderItem, OrderItemResponse>.NewConfig()
+    .Map(dest => dest.TicketTypeName, src => src.TicketType != null ? src.TicketType.Name : string.Empty)
+    .Map(dest => dest.TypeName, src => src.TicketType != null ? src.TicketType.TypeEnum.ToString() : string.Empty)
+    .Map(dest => dest.Subtotal, src => src.Quantity * src.UnitPrice);
+
+TypeAdapterConfig<Ticket, TicketResponse>.NewConfig()
+    .Map(dest => dest.UserFullName, src => src.User != null ? src.User.FirstName + " " + src.User.LastName : string.Empty)
+    .Map(dest => dest.EventId, src => src.OrderItem != null && src.OrderItem.Order != null ? src.OrderItem.Order.EventId : 0)
+    .Map(dest => dest.EventTitle, src => src.OrderItem != null && src.OrderItem.Order != null && src.OrderItem.Order.Event != null ? src.OrderItem.Order.Event.Title : string.Empty)
+    .Map(dest => dest.TicketTypeName, src => src.OrderItem != null && src.OrderItem.TicketType != null ? src.OrderItem.TicketType.Name : string.Empty)
+    .Map(dest => dest.TypeName, src => src.OrderItem != null && src.OrderItem.TicketType != null ? src.OrderItem.TicketType.TypeEnum.ToString() : string.Empty)
+    .Map(dest => dest.StatusName, src => src.Status.ToString());
+
+TypeAdapterConfig<Review, ReviewResponse>.NewConfig()
+    .Map(dest => dest.EventTitle, src => src.Event != null ? src.Event.Title : string.Empty)
+    .Map(dest => dest.UserFullName, src => src.User != null ? src.User.FirstName + " " + src.User.LastName : string.Empty);
+
+TypeAdapterConfig<Favorite, FavoriteResponse>.NewConfig()
+    .Map(dest => dest.EventTitle, src => src.Event != null ? src.Event.Title : string.Empty)
+    .Map(dest => dest.EventCoverImageUrl, src => src.Event != null ? src.Event.CoverImageUrl : null);
+
+TypeAdapterConfig<Friendship, FriendshipResponse>.NewConfig()
+    .Map(dest => dest.RequesterName, src => src.Requester != null ? src.Requester.FirstName + " " + src.Requester.LastName : string.Empty)
+    .Map(dest => dest.AddresseeName, src => src.Addressee != null ? src.Addressee.FirstName + " " + src.Addressee.LastName : string.Empty)
+    .Map(dest => dest.StatusName, src => src.Status.ToString());
+
+TypeAdapterConfig<Notification, NotificationResponse>.NewConfig()
+    .Map(dest => dest.TypeName, src => src.Type.ToString())
+    .Map(dest => dest.ReferenceId, src => src.ReferenceId.HasValue ? src.ReferenceId.Value.ToString() : null);
+
+builder.Services.AddSignalR();
+
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 
@@ -46,6 +99,14 @@ builder.Services.AddScoped<IQueryOptimizationService, QueryOptimizationService>(
 builder.Services.AddScoped<ICityService, CityService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<IVenueService, VenueService>();
+builder.Services.AddScoped<IEventService, EventService>();
+builder.Services.AddScoped<ITicketTypeService, TicketTypeService>();
+builder.Services.AddScoped<IOrderService, OrderService>();
+builder.Services.AddScoped<ITicketService, TicketService>();
+builder.Services.AddScoped<IReviewService, ReviewService>();
+builder.Services.AddScoped<IFavoriteService, FavoriteService>();
+builder.Services.AddScoped<IFriendshipService, FriendshipService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
 
 builder.Services.AddScoped<IValidator<UserInsertRequest>, UserInsertValidator>();
 builder.Services.AddScoped<IValidator<UserUpdateRequest>, UserUpdateValidator>();
@@ -57,6 +118,13 @@ builder.Services.AddScoped<IValidator<CategoryInsertRequest>, CategoryInsertRequ
 builder.Services.AddScoped<IValidator<CategoryUpdateRequest>, CategoryUpdateRequestValidator>();
 builder.Services.AddScoped<IValidator<VenueInsertRequest>, VenueInsertRequestValidator>();
 builder.Services.AddScoped<IValidator<VenueUpdateRequest>, VenueUpdateRequestValidator>();
+builder.Services.AddScoped<IValidator<EventInsertRequest>, EventInsertRequestValidator>();
+builder.Services.AddScoped<IValidator<EventUpdateRequest>, EventUpdateRequestValidator>();
+builder.Services.AddScoped<IValidator<TicketTypeInsertRequest>, TicketTypeInsertRequestValidator>();
+builder.Services.AddScoped<IValidator<TicketTypeUpdateRequest>, TicketTypeUpdateRequestValidator>();
+builder.Services.AddScoped<IValidator<OrderInsertRequest>, OrderInsertRequestValidator>();
+builder.Services.AddScoped<IValidator<ReviewInsertRequest>, ReviewInsertRequestValidator>();
+builder.Services.AddScoped<IValidator<ReviewUpdateRequest>, ReviewUpdateRequestValidator>();
 
 builder.Services.AddOpenApi();
 
@@ -84,6 +152,16 @@ builder.Services.AddAuthentication(options =>
     };
     o.Events = new JwtBearerEvents
     {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+            {
+                context.Token = accessToken;
+            }
+            return Task.CompletedTask;
+        },
         OnTokenValidated = async context =>
         {
             var jti = context.Principal?.FindFirst("jti")?.Value;
@@ -105,9 +183,10 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("SpotterPolicy", policy =>
     {
-        policy.AllowAnyOrigin()
+        policy.WithOrigins("http://localhost:5126", "http://10.0.2.2:5126", "http://localhost:3000")
               .AllowAnyHeader()
-              .AllowAnyMethod();
+              .AllowAnyMethod()
+              .AllowCredentials();
     });
 });
 
@@ -156,5 +235,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<Spotter.Services.Hubs.NotificationHub>("/hubs/notifications");
 
 app.Run();

@@ -1,0 +1,17 @@
+using FluentValidation;
+using Spotter.Model.Requests;
+
+namespace Spotter.Services.Validators
+{
+    public class TicketTypeInsertRequestValidator : AbstractValidator<TicketTypeInsertRequest>
+    {
+        public TicketTypeInsertRequestValidator()
+        {
+            RuleFor(x => x.EventId).GreaterThan(0);
+            RuleFor(x => x.Name).NotEmpty().MaximumLength(100);
+            RuleFor(x => x.Price).GreaterThan(0).LessThanOrEqualTo(10000);
+            RuleFor(x => x.TotalQuantity).GreaterThan(0).LessThanOrEqualTo(100000);
+            RuleFor(x => x.TypeEnum).IsInEnum();
+        }
+    }
+}

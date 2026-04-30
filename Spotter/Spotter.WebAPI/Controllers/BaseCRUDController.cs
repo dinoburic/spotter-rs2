@@ -4,14 +4,6 @@ using Spotter.Model.SearchObjects;
 
 namespace Spotter.WebAPI.Controllers;
 
-/// <summary>
-/// Generic base controller for CRUD operations (Create, Read, Update, Delete)
-/// </summary>
-/// <typeparam name="TResponse">The response model type</typeparam>
-/// <typeparam name="TSearch">The search/filter object type</typeparam>
-/// <typeparam name="TInsertRequest">The insert request model type</typeparam>
-/// <typeparam name="TUpdateRequest">The update request model type</typeparam>
-/// <typeparam name="TService">The service interface type implementing CRUD operations</typeparam>
 [ApiController]
 [Route("[controller]")]
 public abstract class BaseCRUDController<TResponse, TSearch, TInsertRequest, TUpdateRequest, TService>

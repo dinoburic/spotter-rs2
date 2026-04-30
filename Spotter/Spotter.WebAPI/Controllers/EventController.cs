@@ -75,5 +75,13 @@ namespace Spotter.WebAPI.Controllers
             var result = await _eventService.CancelAsync(id);
             return Ok(result);
         }
+
+        [HttpPost("{id}/complete")]
+        [Authorize(Roles = Roles.Admin)]
+        public async Task<ActionResult<EventResponse>> Complete(int id)
+        {
+            var result = await _eventService.CompleteAsync(id);
+            return Ok(result);
+        }
     }
 }

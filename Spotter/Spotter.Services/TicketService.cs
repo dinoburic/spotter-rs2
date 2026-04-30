@@ -5,6 +5,7 @@ using Spotter.Model.Exceptions;
 using Spotter.Model.Responses;
 using Spotter.Model.SearchObjects;
 using Spotter.Services.Database;
+using Spotter.Services.StateMachines;
 
 namespace Spotter.Services
 {
@@ -13,15 +14,21 @@ namespace Spotter.Services
         private readonly SpotterDbContext _dbContext;
         private readonly IMapper _mapper;
         private readonly ICurrentUserService _currentUserService;
+        private readonly TicketStateMachine _ticketStateMachine;
+        private readonly IBadgeService _badgeService;
 
         public TicketService(
             SpotterDbContext dbContext,
             IMapper mapper,
-            ICurrentUserService currentUserService)
+            ICurrentUserService currentUserService,
+            TicketStateMachine ticketStateMachine,
+            IBadgeService badgeService)
         {
             _dbContext = dbContext;
             _mapper = mapper;
             _currentUserService = currentUserService;
+            _ticketStateMachine = ticketStateMachine;
+            _badgeService = badgeService;
         }
 
         public async Task<PageResult<TicketResponse>> GetAllAsync(TicketSearch? search = null)
@@ -102,19 +109,14 @@ namespace Spotter.Services
             if (ticket == null)
                 throw new NotFoundException("Ticket not found.");
 
-            if (ticket.Status == TicketStatus.Used)
-                throw new ClientException("Ticket has already been used.");
-
-            if (ticket.Status == TicketStatus.Cancelled)
-                throw new ClientException("Ticket is cancelled.");
-
             if (ticket.OrderItem.Order.Event.StartsAt > DateTime.UtcNow.AddHours(2))
                 throw new ClientException("Event has not started yet.");
 
-            ticket.Status = TicketStatus.Used;
-            ticket.UsedAt = DateTime.UtcNow;
+            _ticketStateMachine.Transition(ticket, TicketStatus.Used);
 
             await _dbContext.SaveChangesAsync();
+
+            await _badgeService.EvaluateAndAwardAsync(ticket.UserId);
 
             return _mapper.Map<TicketResponse>(ticket);
         }

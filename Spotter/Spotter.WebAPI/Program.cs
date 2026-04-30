@@ -12,6 +12,7 @@ using Spotter.Model.Responses;
 using Spotter.Services;
 using Spotter.Services.Database;
 using Spotter.Services.QueryOptimization;
+using Spotter.Services.StateMachines;
 using Spotter.Services.Validators;
 using Spotter.WebAPI.Filters;
 using System.Text;
@@ -86,6 +87,28 @@ TypeAdapterConfig<Notification, NotificationResponse>.NewConfig()
     .Map(dest => dest.TypeName, src => src.Type.ToString())
     .Map(dest => dest.ReferenceId, src => src.ReferenceId.HasValue ? src.ReferenceId.Value.ToString() : null);
 
+TypeAdapterConfig<Reservation, ReservationResponse>.NewConfig()
+    .Map(dest => dest.EventTitle, src => src.Event != null ? src.Event.Title : string.Empty)
+    .Map(dest => dest.UserFullName, src => src.User != null ? src.User.FirstName + " " + src.User.LastName : string.Empty)
+    .Map(dest => dest.StatusName, src => src.Status.ToString())
+    .Map(dest => dest.ApprovedByName, src => src.ApprovedBy != null ? src.ApprovedBy.FirstName + " " + src.ApprovedBy.LastName : null);
+
+TypeAdapterConfig<SpotterPoints, SpotterPointsResponse>.NewConfig()
+    .Map(dest => dest.SourceName, src => src.Source.ToString())
+    .Map(dest => dest.ReferenceId, src => src.ReferenceId.HasValue ? src.ReferenceId.Value.ToString() : null);
+
+TypeAdapterConfig<Badge, BadgeResponse>.NewConfig();
+
+TypeAdapterConfig<UserBadge, UserBadgeResponse>.NewConfig()
+    .Map(dest => dest.BadgeName, src => src.Badge != null ? src.Badge.Name : string.Empty)
+    .Map(dest => dest.BadgeDescription, src => src.Badge != null ? src.Badge.Description : string.Empty)
+    .Map(dest => dest.BadgeIconUrl, src => src.Badge != null ? src.Badge.IconUrl : null);
+
+TypeAdapterConfig<WaitlistEntry, WaitlistEntryResponse>.NewConfig()
+    .Map(dest => dest.UserFullName, src => src.User != null ? src.User.FirstName + " " + src.User.LastName : string.Empty)
+    .Map(dest => dest.EventTitle, src => src.Event != null ? src.Event.Title : string.Empty)
+    .Map(dest => dest.TicketTypeName, src => src.TicketType != null ? src.TicketType.Name : string.Empty);
+
 builder.Services.AddSignalR();
 
 builder.Services.AddHttpContextAccessor();
@@ -107,6 +130,15 @@ builder.Services.AddScoped<IReviewService, ReviewService>();
 builder.Services.AddScoped<IFavoriteService, FavoriteService>();
 builder.Services.AddScoped<IFriendshipService, FriendshipService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IReservationService, ReservationService>();
+builder.Services.AddScoped<ISpotterPointsService, SpotterPointsService>();
+builder.Services.AddScoped<IBadgeService, BadgeService>();
+builder.Services.AddScoped<IWaitlistService, WaitlistService>();
+
+builder.Services.AddScoped<EventStateMachine>();
+builder.Services.AddScoped<OrderStateMachine>();
+builder.Services.AddScoped<TicketStateMachine>();
+builder.Services.AddScoped<ReservationStateMachine>();
 
 builder.Services.AddScoped<IValidator<UserInsertRequest>, UserInsertValidator>();
 builder.Services.AddScoped<IValidator<UserUpdateRequest>, UserUpdateValidator>();
@@ -125,6 +157,8 @@ builder.Services.AddScoped<IValidator<TicketTypeUpdateRequest>, TicketTypeUpdate
 builder.Services.AddScoped<IValidator<OrderInsertRequest>, OrderInsertRequestValidator>();
 builder.Services.AddScoped<IValidator<ReviewInsertRequest>, ReviewInsertRequestValidator>();
 builder.Services.AddScoped<IValidator<ReviewUpdateRequest>, ReviewUpdateRequestValidator>();
+builder.Services.AddScoped<IValidator<ReservationInsertRequest>, ReservationInsertRequestValidator>();
+builder.Services.AddScoped<IValidator<WaitlistJoinRequest>, WaitlistJoinRequestValidator>();
 
 builder.Services.AddOpenApi();
 

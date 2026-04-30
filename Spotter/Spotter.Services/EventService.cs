@@ -7,22 +7,26 @@ using Spotter.Model.Requests;
 using Spotter.Model.Responses;
 using Spotter.Model.SearchObjects;
 using Spotter.Services.Database;
+using Spotter.Services.StateMachines;
 
 namespace Spotter.Services
 {
     public class EventService : BaseCRUDService<Event, EventResponse, EventSearch, EventInsertRequest, EventUpdateRequest>, IEventService
     {
         private readonly ICurrentUserService _currentUserService;
+        private readonly EventStateMachine _eventStateMachine;
 
         public EventService(
             SpotterDbContext dbContext,
             IMapper mapper,
             IValidator<EventInsertRequest> insertValidator,
             IValidator<EventUpdateRequest> updateValidator,
-            ICurrentUserService currentUserService)
+            ICurrentUserService currentUserService,
+            EventStateMachine eventStateMachine)
             : base(dbContext, mapper, insertValidator, updateValidator)
         {
             _currentUserService = currentUserService;
+            _eventStateMachine = eventStateMachine;
         }
 
         protected override Task<IQueryable<Event>> IncludeRelatedEntitiesAsync(EventSearch? search, IQueryable<Event> query)
@@ -152,7 +156,7 @@ namespace Spotter.Services
 
             entity.IsDeleted = true;
             entity.DeletedAt = DateTime.UtcNow;
-            entity.Status = EventStatus.Cancelled;
+            _eventStateMachine.Transition(entity, EventStatus.Cancelled);
 
             await _dbContext.SaveChangesAsync();
         }
@@ -169,14 +173,14 @@ namespace Spotter.Services
             if (entity == null)
                 throw new NotFoundException("Event not found.");
 
-            if (entity.Status != EventStatus.Draft)
-                throw new ClientException("Only draft events can be activated.");
+            if (!_currentUserService.IsAdmin() && entity.OrganizerId != _currentUserService.GetUserId())
+                throw new ClientException("Access denied.");
 
             var hasTicketTypes = await _dbContext.TicketTypes.AnyAsync(tt => tt.EventId == id);
             if (!hasTicketTypes)
                 throw new ClientException("Event must have at least one ticket type before activation.");
 
-            entity.Status = EventStatus.Active;
+            _eventStateMachine.Transition(entity, EventStatus.Active);
             await _dbContext.SaveChangesAsync();
 
             return _mapper.Map<EventResponse>(entity);
@@ -194,13 +198,28 @@ namespace Spotter.Services
             if (entity == null)
                 throw new NotFoundException("Event not found.");
 
-            if (entity.Status == EventStatus.Cancelled)
-                throw new ClientException("Event is already cancelled.");
+            if (!_currentUserService.IsAdmin() && entity.OrganizerId != _currentUserService.GetUserId())
+                throw new ClientException("Access denied.");
 
-            if (entity.Status == EventStatus.Completed)
-                throw new ClientException("Completed events cannot be cancelled.");
+            _eventStateMachine.Transition(entity, EventStatus.Cancelled);
+            await _dbContext.SaveChangesAsync();
 
-            entity.Status = EventStatus.Cancelled;
+            return _mapper.Map<EventResponse>(entity);
+        }
+
+        public async Task<EventResponse> CompleteAsync(int id)
+        {
+            var entity = await _dbContext.Events
+                .Include(e => e.Category)
+                .Include(e => e.Venue).ThenInclude(v => v.City)
+                .Include(e => e.Organizer)
+                .Include(e => e.TicketTypes)
+                .FirstOrDefaultAsync(e => e.Id == id);
+
+            if (entity == null)
+                throw new NotFoundException("Event not found.");
+
+            _eventStateMachine.Transition(entity, EventStatus.Completed);
             await _dbContext.SaveChangesAsync();
 
             return _mapper.Map<EventResponse>(entity);

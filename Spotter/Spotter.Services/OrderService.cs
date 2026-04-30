@@ -7,6 +7,7 @@ using Spotter.Model.Requests;
 using Spotter.Model.Responses;
 using Spotter.Model.SearchObjects;
 using Spotter.Services.Database;
+using Spotter.Services.StateMachines;
 using System.Text;
 
 namespace Spotter.Services
@@ -18,19 +19,34 @@ namespace Spotter.Services
         private readonly ICurrentUserService _currentUserService;
         private readonly IValidator<OrderInsertRequest> _validator;
         private readonly INotificationService _notificationService;
+        private readonly OrderStateMachine _orderStateMachine;
+        private readonly TicketStateMachine _ticketStateMachine;
+        private readonly ISpotterPointsService _spotterPointsService;
+        private readonly IBadgeService _badgeService;
+        private readonly IWaitlistService _waitlistService;
 
         public OrderService(
             SpotterDbContext dbContext,
             IMapper mapper,
             ICurrentUserService currentUserService,
             IValidator<OrderInsertRequest> validator,
-            INotificationService notificationService)
+            INotificationService notificationService,
+            OrderStateMachine orderStateMachine,
+            TicketStateMachine ticketStateMachine,
+            ISpotterPointsService spotterPointsService,
+            IBadgeService badgeService,
+            IWaitlistService waitlistService)
         {
             _dbContext = dbContext;
             _mapper = mapper;
             _currentUserService = currentUserService;
             _validator = validator;
             _notificationService = notificationService;
+            _orderStateMachine = orderStateMachine;
+            _ticketStateMachine = ticketStateMachine;
+            _spotterPointsService = spotterPointsService;
+            _badgeService = badgeService;
+            _waitlistService = waitlistService;
         }
 
         public async Task<PageResult<OrderResponse>> GetAllAsync(OrderSearch? search = null)
@@ -207,11 +223,19 @@ namespace Spotter.Services
             if (order == null)
                 throw new NotFoundException("Order not found.");
 
-            if (order.Status != OrderStatus.Pending)
-                throw new ClientException("Only pending orders can be marked as paid.");
-
-            order.Status = OrderStatus.Paid;
+            _orderStateMachine.Transition(order, OrderStatus.Paid);
             await _dbContext.SaveChangesAsync();
+
+            var pointsToEarn = Math.Max(1, (int)Math.Floor(order.TotalAmount / 10));
+            await _spotterPointsService.EarnAsync(
+                order.UserId,
+                pointsToEarn,
+                PointSource.Purchase,
+                order.Id.ToString(),
+                $"Purchase: {order.Event.Title}"
+            );
+
+            await _badgeService.EvaluateAndAwardAsync(order.UserId);
 
             return _mapper.Map<OrderResponse>(order);
         }
@@ -228,29 +252,34 @@ namespace Spotter.Services
             if (order == null)
                 throw new NotFoundException("Order not found.");
 
-            if (order.Status != OrderStatus.Paid)
-                throw new ClientException("Only paid orders can be refunded.");
-
             await using var transaction = await _dbContext.Database.BeginTransactionAsync();
 
-            order.Status = OrderStatus.Refunded;
+            _orderStateMachine.Transition(order, OrderStatus.Refunded);
+
+            var ticketTypeIdsToNotify = new List<int>();
 
             foreach (var orderItem in order.OrderItems)
             {
                 foreach (var ticket in orderItem.Tickets.Where(t => t.Status == TicketStatus.Active))
                 {
-                    ticket.Status = TicketStatus.Cancelled;
+                    _ticketStateMachine.Transition(ticket, TicketStatus.Cancelled);
                 }
 
                 var ticketType = await _dbContext.TicketTypes.FindAsync(orderItem.TicketTypeId);
                 if (ticketType != null)
                 {
                     ticketType.SoldQuantity -= orderItem.Quantity;
+                    ticketTypeIdsToNotify.Add(orderItem.TicketTypeId);
                 }
             }
 
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
+
+            foreach (var ticketTypeId in ticketTypeIdsToNotify.Distinct())
+            {
+                await _waitlistService.NotifyNextInLineAsync(ticketTypeId);
+            }
 
             return _mapper.Map<OrderResponse>(order);
         }

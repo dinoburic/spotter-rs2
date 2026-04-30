@@ -18,6 +18,8 @@ namespace Spotter.Services
         private readonly IValidator<ReviewInsertRequest> _insertValidator;
         private readonly IValidator<ReviewUpdateRequest> _updateValidator;
         private readonly INotificationService _notificationService;
+        private readonly ISpotterPointsService _spotterPointsService;
+        private readonly IBadgeService _badgeService;
 
         public ReviewService(
             SpotterDbContext dbContext,
@@ -25,7 +27,9 @@ namespace Spotter.Services
             ICurrentUserService currentUserService,
             IValidator<ReviewInsertRequest> insertValidator,
             IValidator<ReviewUpdateRequest> updateValidator,
-            INotificationService notificationService)
+            INotificationService notificationService,
+            ISpotterPointsService spotterPointsService,
+            IBadgeService badgeService)
         {
             _dbContext = dbContext;
             _mapper = mapper;
@@ -33,6 +37,8 @@ namespace Spotter.Services
             _insertValidator = insertValidator;
             _updateValidator = updateValidator;
             _notificationService = notificationService;
+            _spotterPointsService = spotterPointsService;
+            _badgeService = badgeService;
         }
 
         public async Task<PageResult<ReviewResponse>> GetAllAsync(ReviewSearch? search = null)
@@ -133,24 +139,7 @@ namespace Spotter.Services
             _dbContext.Reviews.Add(review);
             await _dbContext.SaveChangesAsync();
 
-            var pointsEntry = new SpotterPoints
-            {
-                UserId = userId,
-                Delta = 10,
-                Source = PointSource.Review,
-                ReferenceId = review.Id,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            _dbContext.SpotterPoints.Add(pointsEntry);
-
-            var user = await _dbContext.Users.FindAsync(userId);
-            if (user != null)
-            {
-                user.SpotterPointsBalance += 10;
-            }
-
-            await _dbContext.SaveChangesAsync();
+            await _spotterPointsService.EarnAsync(userId, 10, PointSource.Review, review.Id.ToString(), "Review submitted");
 
             var createdReview = await _dbContext.Reviews
                 .Include(r => r.User)
@@ -164,6 +153,8 @@ namespace Spotter.Services
                 type: NotificationType.General,
                 referenceId: review.Id.ToString()
             );
+
+            await _badgeService.EvaluateAndAwardAsync(userId);
 
             return _mapper.Map<ReviewResponse>(createdReview);
         }
@@ -206,25 +197,16 @@ namespace Spotter.Services
 
             review.IsDeleted = true;
             review.DeletedAt = DateTime.UtcNow;
-
-            var pointsEntry = new SpotterPoints
-            {
-                UserId = review.UserId,
-                Delta = -10,
-                Source = PointSource.Review,
-                ReferenceId = review.Id,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            _dbContext.SpotterPoints.Add(pointsEntry);
-
-            var user = await _dbContext.Users.FindAsync(review.UserId);
-            if (user != null)
-            {
-                user.SpotterPointsBalance = Math.Max(0, user.SpotterPointsBalance - 10);
-            }
-
             await _dbContext.SaveChangesAsync();
+
+            var balance = await _dbContext.SpotterPoints
+                .Where(sp => sp.UserId == review.UserId)
+                .SumAsync(sp => sp.Delta);
+
+            if (balance >= 10)
+            {
+                await _spotterPointsService.RedeemAsync(review.UserId, 10, review.Id.ToString());
+            }
         }
     }
 }

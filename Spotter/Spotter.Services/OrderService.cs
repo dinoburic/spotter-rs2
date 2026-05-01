@@ -1,12 +1,14 @@
 using FluentValidation;
 using MapsterMapper;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Spotter.Model.Enums;
 using Spotter.Model.Exceptions;
 using Spotter.Model.Requests;
 using Spotter.Model.Responses;
 using Spotter.Model.SearchObjects;
 using Spotter.Services.Database;
+using Spotter.Services.StateMachines;
 using System.Text;
 
 namespace Spotter.Services
@@ -18,19 +20,37 @@ namespace Spotter.Services
         private readonly ICurrentUserService _currentUserService;
         private readonly IValidator<OrderInsertRequest> _validator;
         private readonly INotificationService _notificationService;
+        private readonly OrderStateMachine _orderStateMachine;
+        private readonly TicketStateMachine _ticketStateMachine;
+        private readonly ISpotterPointsService _spotterPointsService;
+        private readonly IBadgeService _badgeService;
+        private readonly IWaitlistService _waitlistService;
+        private readonly ILogger<OrderService> _logger;
 
         public OrderService(
             SpotterDbContext dbContext,
             IMapper mapper,
             ICurrentUserService currentUserService,
             IValidator<OrderInsertRequest> validator,
-            INotificationService notificationService)
+            INotificationService notificationService,
+            OrderStateMachine orderStateMachine,
+            TicketStateMachine ticketStateMachine,
+            ISpotterPointsService spotterPointsService,
+            IBadgeService badgeService,
+            IWaitlistService waitlistService,
+            ILogger<OrderService> logger)
         {
             _dbContext = dbContext;
             _mapper = mapper;
             _currentUserService = currentUserService;
             _validator = validator;
             _notificationService = notificationService;
+            _orderStateMachine = orderStateMachine;
+            _ticketStateMachine = ticketStateMachine;
+            _spotterPointsService = spotterPointsService;
+            _badgeService = badgeService;
+            _waitlistService = waitlistService;
+            _logger = logger;
         }
 
         public async Task<PageResult<OrderResponse>> GetAllAsync(OrderSearch? search = null)
@@ -99,105 +119,120 @@ namespace Spotter.Services
 
         public async Task<OrderResponse> CreateOrderAsync(OrderInsertRequest request)
         {
-            await _validator.ValidateAndThrowAsync(request);
-
-            var eventEntity = await _dbContext.Events
-                .Include(e => e.TicketTypes)
-                .FirstOrDefaultAsync(e => e.Id == request.EventId && !e.IsDeleted);
-
-            if (eventEntity == null)
-                throw new NotFoundException("Event not found.");
-
-            if (eventEntity.Status != EventStatus.Active)
-                throw new ClientException("Only active events accept orders.");
-
-            var ticketTypesDict = new Dictionary<int, TicketType>();
-            foreach (var item in request.Items)
-            {
-                var ticketType = eventEntity.TicketTypes.FirstOrDefault(tt => tt.Id == item.TicketTypeId);
-                if (ticketType == null)
-                    throw new NotFoundException($"TicketType {item.TicketTypeId} not found for this event.");
-
-                var available = ticketType.TotalQuantity - ticketType.SoldQuantity;
-                if (item.Quantity > available)
-                    throw new ClientException($"Not enough tickets available for {ticketType.Name}. Available: {available}.");
-
-                ticketTypesDict[item.TicketTypeId] = ticketType;
-            }
-
-            await using var transaction = await _dbContext.Database.BeginTransactionAsync();
-
             var userId = _currentUserService.GetUserId();
-            var totalAmount = request.Items.Sum(i => i.Quantity * ticketTypesDict[i.TicketTypeId].Price);
+            _logger.LogInformation("Creating order for user {UserId} event {EventId}", userId, request.EventId);
 
-            var order = new Order
+            try
             {
-                UserId = userId,
-                EventId = request.EventId,
-                Status = OrderStatus.Pending,
-                CreatedAt = DateTime.UtcNow,
-                TotalAmount = totalAmount,
-                SpotterPointsRedeemed = 0,
-                DiscountApplied = 0
-            };
+                await _validator.ValidateAndThrowAsync(request);
 
-            _dbContext.Orders.Add(order);
-            await _dbContext.SaveChangesAsync();
+                var eventEntity = await _dbContext.Events
+                    .Include(e => e.TicketTypes)
+                    .FirstOrDefaultAsync(e => e.Id == request.EventId && !e.IsDeleted);
 
-            foreach (var item in request.Items)
-            {
-                var ticketType = ticketTypesDict[item.TicketTypeId];
-
-                var orderItem = new OrderItem
+                if (eventEntity == null)
                 {
-                    OrderId = order.Id,
-                    TicketTypeId = item.TicketTypeId,
-                    Quantity = item.Quantity,
-                    UnitPrice = ticketType.Price
-                };
-
-                _dbContext.OrderItems.Add(orderItem);
-                await _dbContext.SaveChangesAsync();
-
-                for (int i = 0; i < item.Quantity; i++)
-                {
-                    var ticket = new Ticket
-                    {
-                        UserId = userId,
-                        OrderItemId = orderItem.Id,
-                        QrCodePayload = GenerateQrPayload(order.Id, orderItem.Id, item.TicketTypeId),
-                        Status = TicketStatus.Active,
-                        IssuedAt = DateTime.UtcNow
-                    };
-                    _dbContext.Tickets.Add(ticket);
+                    _logger.LogWarning("Event {EventId} not found", request.EventId);
+                    throw new NotFoundException("Event not found.");
                 }
 
-                ticketType.SoldQuantity += item.Quantity;
+                if (eventEntity.Status != EventStatus.Active)
+                    throw new ClientException("Only active events accept orders.");
+
+                var ticketTypesDict = new Dictionary<int, TicketType>();
+                foreach (var item in request.Items)
+                {
+                    var ticketType = eventEntity.TicketTypes.FirstOrDefault(tt => tt.Id == item.TicketTypeId);
+                    if (ticketType == null)
+                        throw new NotFoundException($"TicketType {item.TicketTypeId} not found for this event.");
+
+                    var available = ticketType.TotalQuantity - ticketType.SoldQuantity;
+                    if (item.Quantity > available)
+                        throw new ClientException($"Not enough tickets available for {ticketType.Name}. Available: {available}.");
+
+                    ticketTypesDict[item.TicketTypeId] = ticketType;
+                }
+
+                await using var transaction = await _dbContext.Database.BeginTransactionAsync();
+
+                var totalAmount = request.Items.Sum(i => i.Quantity * ticketTypesDict[i.TicketTypeId].Price);
+
+                var order = new Order
+                {
+                    UserId = userId,
+                    EventId = request.EventId,
+                    Status = OrderStatus.Pending,
+                    CreatedAt = DateTime.UtcNow,
+                    TotalAmount = totalAmount,
+                    SpotterPointsRedeemed = 0,
+                    DiscountApplied = 0
+                };
+
+                _dbContext.Orders.Add(order);
+                await _dbContext.SaveChangesAsync();
+
+                foreach (var item in request.Items)
+                {
+                    var ticketType = ticketTypesDict[item.TicketTypeId];
+
+                    var orderItem = new OrderItem
+                    {
+                        OrderId = order.Id,
+                        TicketTypeId = item.TicketTypeId,
+                        Quantity = item.Quantity,
+                        UnitPrice = ticketType.Price
+                    };
+
+                    _dbContext.OrderItems.Add(orderItem);
+                    await _dbContext.SaveChangesAsync();
+
+                    for (int i = 0; i < item.Quantity; i++)
+                    {
+                        var ticket = new Ticket
+                        {
+                            UserId = userId,
+                            OrderItemId = orderItem.Id,
+                            QrCodePayload = GenerateQrPayload(order.Id, orderItem.Id, item.TicketTypeId),
+                            Status = TicketStatus.Active,
+                            IssuedAt = DateTime.UtcNow
+                        };
+                        _dbContext.Tickets.Add(ticket);
+                    }
+
+                    ticketType.SoldQuantity += item.Quantity;
+                }
+
+                await _dbContext.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                var createdOrder = await _dbContext.Orders
+                    .Include(o => o.User)
+                    .Include(o => o.Event)
+                    .Include(o => o.OrderItems).ThenInclude(oi => oi.TicketType)
+                    .FirstAsync(o => o.Id == order.Id);
+
+                var totalTickets = request.Items.Sum(i => i.Quantity);
+                await _notificationService.CreateAsync(
+                    userId: userId,
+                    title: "Order Confirmed",
+                    body: $"Your order for {eventEntity.Title} has been confirmed. {totalTickets} ticket(s) issued.",
+                    type: NotificationType.General,
+                    referenceId: order.Id.ToString()
+                );
+
+                _logger.LogInformation("Order {OrderId} created successfully for user {UserId}", order.Id, userId);
+                return _mapper.Map<OrderResponse>(createdOrder);
             }
-
-            await _dbContext.SaveChangesAsync();
-            await transaction.CommitAsync();
-
-            var createdOrder = await _dbContext.Orders
-                .Include(o => o.User)
-                .Include(o => o.Event)
-                .Include(o => o.OrderItems).ThenInclude(oi => oi.TicketType)
-                .FirstAsync(o => o.Id == order.Id);
-
-            var totalTickets = request.Items.Sum(i => i.Quantity);
-            await _notificationService.CreateAsync(
-                userId: userId,
-                title: "Order Confirmed",
-                body: $"Your order for {eventEntity.Title} has been confirmed. {totalTickets} ticket(s) issued.",
-                type: NotificationType.General,
-                referenceId: order.Id.ToString()
-            );
-
-            return _mapper.Map<OrderResponse>(createdOrder);
+            catch (Exception ex) when (ex is not ClientException and not NotFoundException)
+            {
+                _logger.LogError(ex, "Failed to create order for user {UserId}", userId);
+                throw;
+            }
         }
 
         public async Task<OrderResponse> MarkAsPaidAsync(int id)
         {
+            _logger.LogInformation("Marking order {OrderId} as paid", id);
             var order = await _dbContext.Orders
                 .Include(o => o.User)
                 .Include(o => o.Event)
@@ -205,19 +240,32 @@ namespace Spotter.Services
                 .FirstOrDefaultAsync(o => o.Id == id);
 
             if (order == null)
+            {
+                _logger.LogWarning("Order {OrderId} not found", id);
                 throw new NotFoundException("Order not found.");
+            }
 
-            if (order.Status != OrderStatus.Pending)
-                throw new ClientException("Only pending orders can be marked as paid.");
-
-            order.Status = OrderStatus.Paid;
+            _orderStateMachine.Transition(order, OrderStatus.Paid);
             await _dbContext.SaveChangesAsync();
 
+            var pointsToEarn = Math.Max(1, (int)Math.Floor(order.TotalAmount / 10));
+            await _spotterPointsService.EarnAsync(
+                order.UserId,
+                pointsToEarn,
+                PointSource.Purchase,
+                order.Id.ToString(),
+                $"Purchase: {order.Event.Title}"
+            );
+
+            await _badgeService.EvaluateAndAwardAsync(order.UserId);
+
+            _logger.LogInformation("Order {OrderId} marked as paid successfully", id);
             return _mapper.Map<OrderResponse>(order);
         }
 
         public async Task<OrderResponse> RefundAsync(int id)
         {
+            _logger.LogInformation("Refunding order {OrderId}", id);
             var order = await _dbContext.Orders
                 .Include(o => o.User)
                 .Include(o => o.Event)
@@ -226,32 +274,41 @@ namespace Spotter.Services
                 .FirstOrDefaultAsync(o => o.Id == id);
 
             if (order == null)
+            {
+                _logger.LogWarning("Order {OrderId} not found", id);
                 throw new NotFoundException("Order not found.");
-
-            if (order.Status != OrderStatus.Paid)
-                throw new ClientException("Only paid orders can be refunded.");
+            }
 
             await using var transaction = await _dbContext.Database.BeginTransactionAsync();
 
-            order.Status = OrderStatus.Refunded;
+            _orderStateMachine.Transition(order, OrderStatus.Refunded);
+
+            var ticketTypeIdsToNotify = new List<int>();
 
             foreach (var orderItem in order.OrderItems)
             {
                 foreach (var ticket in orderItem.Tickets.Where(t => t.Status == TicketStatus.Active))
                 {
-                    ticket.Status = TicketStatus.Cancelled;
+                    _ticketStateMachine.Transition(ticket, TicketStatus.Cancelled);
                 }
 
                 var ticketType = await _dbContext.TicketTypes.FindAsync(orderItem.TicketTypeId);
                 if (ticketType != null)
                 {
                     ticketType.SoldQuantity -= orderItem.Quantity;
+                    ticketTypeIdsToNotify.Add(orderItem.TicketTypeId);
                 }
             }
 
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
+            foreach (var ticketTypeId in ticketTypeIdsToNotify.Distinct())
+            {
+                await _waitlistService.NotifyNextInLineAsync(ticketTypeId);
+            }
+
+            _logger.LogInformation("Order {OrderId} refunded successfully", id);
             return _mapper.Map<OrderResponse>(order);
         }
 

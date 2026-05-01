@@ -13,5 +13,6 @@ namespace Spotter.Services
         Task DeleteAsync(int id);
         Task<EventResponse> ActivateAsync(int id);
         Task<EventResponse> CancelAsync(int id);
+        Task<EventResponse> CompleteAsync(int id);
     }
 }

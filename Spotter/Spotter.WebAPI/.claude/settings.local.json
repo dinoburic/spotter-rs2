@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/dino2/OneDrive/Desktop/FIT-RS2-2026-main/Spotter-main/Spotter/**)",
+      "Bash(dotnet build *)"
+    ]
+  }
+}

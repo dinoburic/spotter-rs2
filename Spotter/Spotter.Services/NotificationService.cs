@@ -1,6 +1,7 @@
 using MapsterMapper;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Spotter.Model.Enums;
 using Spotter.Model.Exceptions;
 using Spotter.Model.Responses;
@@ -16,17 +17,20 @@ namespace Spotter.Services
         private readonly IMapper _mapper;
         private readonly ICurrentUserService _currentUserService;
         private readonly IHubContext<NotificationHub> _hubContext;
+        private readonly ILogger<NotificationService> _logger;
 
         public NotificationService(
             SpotterDbContext dbContext,
             IMapper mapper,
             ICurrentUserService currentUserService,
-            IHubContext<NotificationHub> hubContext)
+            IHubContext<NotificationHub> hubContext,
+            ILogger<NotificationService> logger)
         {
             _dbContext = dbContext;
             _mapper = mapper;
             _currentUserService = currentUserService;
             _hubContext = hubContext;
+            _logger = logger;
         }
 
         public async Task<PageResult<NotificationResponse>> GetMyNotificationsAsync(NotificationSearch? search = null)
@@ -102,6 +106,7 @@ namespace Spotter.Services
 
         public async Task<NotificationResponse> CreateAsync(int userId, string title, string body, NotificationType type, string? referenceId = null)
         {
+            _logger.LogInformation("Creating notification for user {UserId}: {Title}", userId, title);
             int? refId = null;
             if (!string.IsNullOrEmpty(referenceId) && int.TryParse(referenceId, out var parsedRefId))
             {
@@ -128,6 +133,7 @@ namespace Spotter.Services
                 .Group(userId.ToString())
                 .SendAsync("ReceiveNotification", response);
 
+            _logger.LogInformation("Notification {NotificationId} created and sent to user {UserId}", notification.Id, userId);
             return response;
         }
 

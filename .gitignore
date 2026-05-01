@@ -9,6 +9,16 @@
 *.user
 *.userosscache
 *.sln.docstates
+.env
+.env.example
+.claude
+
+claude/
+.env
+
+.claude
+
+claude/
 
 *.env
 

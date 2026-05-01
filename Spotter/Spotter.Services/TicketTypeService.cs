@@ -1,6 +1,7 @@
 using FluentValidation;
 using MapsterMapper;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Spotter.Model.Enums;
 using Spotter.Model.Exceptions;
 using Spotter.Model.Requests;
@@ -12,13 +13,17 @@ namespace Spotter.Services
 {
     public class TicketTypeService : BaseCRUDService<TicketType, TicketTypeResponse, TicketTypeSearch, TicketTypeInsertRequest, TicketTypeUpdateRequest>, ITicketTypeService
     {
+        private readonly ILogger<TicketTypeService> _logger;
+
         public TicketTypeService(
             SpotterDbContext dbContext,
             IMapper mapper,
             IValidator<TicketTypeInsertRequest> insertValidator,
-            IValidator<TicketTypeUpdateRequest> updateValidator)
+            IValidator<TicketTypeUpdateRequest> updateValidator,
+            ILogger<TicketTypeService> logger)
             : base(dbContext, mapper, insertValidator, updateValidator)
         {
+            _logger = logger;
         }
 
         protected override Task<IQueryable<TicketType>> IncludeRelatedEntitiesAsync(TicketTypeSearch? search, IQueryable<TicketType> query)
@@ -43,11 +48,15 @@ namespace Spotter.Services
 
         public override async Task<TicketTypeResponse> InsertAsync(TicketTypeInsertRequest request)
         {
+            _logger.LogInformation("Creating ticket type {Name} for event {EventId}", request.Name, request.EventId);
             await _insertValidator.ValidateAndThrowAsync(request);
 
             var eventEntity = await _dbContext.Events.FirstOrDefaultAsync(e => e.Id == request.EventId);
             if (eventEntity == null)
+            {
+                _logger.LogWarning("Event {EventId} not found", request.EventId);
                 throw new NotFoundException("Event not found.");
+            }
 
             if (eventEntity.Status == EventStatus.Cancelled)
                 throw new ClientException("Cannot add ticket types to a cancelled event.");
@@ -62,11 +71,13 @@ namespace Spotter.Services
                 .Include(tt => tt.Event)
                 .FirstAsync(tt => tt.Id == entity.Id);
 
+            _logger.LogInformation("Ticket type {TicketTypeId} created successfully", entity.Id);
             return _mapper.Map<TicketTypeResponse>(createdEntity);
         }
 
         public override async Task<TicketTypeResponse> UpdateAsync(int id, TicketTypeUpdateRequest request)
         {
+            _logger.LogInformation("Updating ticket type {TicketTypeId}", id);
             await _updateValidator.ValidateAndThrowAsync(request);
 
             var entity = await _dbContext.TicketTypes
@@ -74,7 +85,10 @@ namespace Spotter.Services
                 .FirstOrDefaultAsync(tt => tt.Id == id);
 
             if (entity == null)
+            {
+                _logger.LogWarning("TicketType {TicketTypeId} not found", id);
                 throw new NotFoundException("TicketType not found.");
+            }
 
             if (request.TotalQuantity < entity.SoldQuantity)
                 throw new ClientException("TotalQuantity cannot be less than the number of already sold tickets.");
@@ -82,21 +96,30 @@ namespace Spotter.Services
             _mapper.Map(request, entity);
             await _dbContext.SaveChangesAsync();
 
+            _logger.LogInformation("Ticket type {TicketTypeId} updated successfully", id);
             return _mapper.Map<TicketTypeResponse>(entity);
         }
 
         public override async Task DeleteAsync(int id)
         {
+            _logger.LogInformation("Deleting ticket type {TicketTypeId}", id);
             var entity = await _dbContext.TicketTypes.FirstOrDefaultAsync(tt => tt.Id == id);
 
             if (entity == null)
+            {
+                _logger.LogWarning("TicketType {TicketTypeId} not found", id);
                 throw new NotFoundException("TicketType not found.");
+            }
 
             if (entity.SoldQuantity > 0)
+            {
+                _logger.LogWarning("TicketType {TicketTypeId} cannot be deleted - has sold tickets", id);
                 throw new ClientException("Cannot delete a ticket type that has sold tickets.");
+            }
 
             _dbContext.TicketTypes.Remove(entity);
             await _dbContext.SaveChangesAsync();
+            _logger.LogInformation("Ticket type {TicketTypeId} deleted successfully", id);
         }
     }
 }

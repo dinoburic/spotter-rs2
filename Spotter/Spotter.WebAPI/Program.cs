@@ -23,7 +23,9 @@ builder.Services.AddControllers(
    options => options.Filters.Add<ExceptionFilter>()
 );
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? Environment.GetEnvironmentVariable("SPOTTER_CONNECTION_STRING")
+    ?? throw new InvalidOperationException("Connection string not configured.");
 builder.Services.AddDbContext<SpotterDbContext>(options =>
     options.UseSqlServer(connectionString)
 );
@@ -162,9 +164,15 @@ builder.Services.AddScoped<IValidator<WaitlistJoinRequest>, WaitlistJoinRequestV
 
 builder.Services.AddOpenApi();
 
-var jwtSecret = builder.Configuration["Jwt:Secret"] ?? builder.Configuration["JwtToken:SecretKey"] ?? string.Empty;
-var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? builder.Configuration["JwtToken:Issuer"];
-var jwtAudience = builder.Configuration["Jwt:Audience"] ?? builder.Configuration["JwtToken:Audience"];
+var jwtSecret = builder.Configuration["Jwt:Secret"]
+    ?? Environment.GetEnvironmentVariable("JWT_SECRET")
+    ?? throw new InvalidOperationException("JWT Secret not configured.");
+var jwtIssuer = builder.Configuration["Jwt:Issuer"]
+    ?? Environment.GetEnvironmentVariable("JWT_ISSUER")
+    ?? throw new InvalidOperationException("JWT Issuer not configured.");
+var jwtAudience = builder.Configuration["Jwt:Audience"]
+    ?? Environment.GetEnvironmentVariable("JWT_AUDIENCE")
+    ?? throw new InvalidOperationException("JWT Audience not configured.");
 
 builder.Services.AddAuthentication(options =>
 {

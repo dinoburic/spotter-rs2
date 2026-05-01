@@ -1,5 +1,6 @@
 using MapsterMapper;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Spotter.Model.Enums;
 using Spotter.Model.Exceptions;
 using Spotter.Model.Responses;
@@ -13,15 +14,18 @@ namespace Spotter.Services
         private readonly SpotterDbContext _dbContext;
         private readonly IMapper _mapper;
         private readonly ICurrentUserService _currentUserService;
+        private readonly ILogger<SpotterPointsService> _logger;
 
         public SpotterPointsService(
             SpotterDbContext dbContext,
             IMapper mapper,
-            ICurrentUserService currentUserService)
+            ICurrentUserService currentUserService,
+            ILogger<SpotterPointsService> logger)
         {
             _dbContext = dbContext;
             _mapper = mapper;
             _currentUserService = currentUserService;
+            _logger = logger;
         }
 
         public async Task<PageResult<SpotterPointsResponse>> GetLedgerAsync(SpotterPointsSearch? search = null)
@@ -96,9 +100,11 @@ namespace Spotter.Services
 
         public async Task<SpotterPointsResponse> EarnAsync(int userId, int delta, PointSource source, string? referenceId = null, string? description = null)
         {
+            _logger.LogInformation("Earning {Delta} points for user {UserId} from {Source}", delta, userId, source);
             var user = await _dbContext.Users.FindAsync(userId);
             if (user == null)
             {
+                _logger.LogWarning("User {UserId} not found", userId);
                 throw new NotFoundException("User not found.");
             }
 
@@ -121,23 +127,27 @@ namespace Spotter.Services
             user.SpotterPointsBalance += delta;
             await _dbContext.SaveChangesAsync();
 
+            _logger.LogInformation("User {UserId} earned {Delta} points", userId, delta);
             return _mapper.Map<SpotterPointsResponse>(entry);
         }
 
         public async Task RedeemAsync(int userId, int points, string? referenceId = null)
         {
+            _logger.LogInformation("Redeeming {Points} points for user {UserId}", points, userId);
             var balance = await _dbContext.SpotterPoints
                 .Where(sp => sp.UserId == userId)
                 .SumAsync(sp => sp.Delta);
 
             if (balance < points)
             {
+                _logger.LogWarning("User {UserId} has insufficient points ({Balance}) to redeem {Points}", userId, balance, points);
                 throw new ClientException($"Insufficient points. Available: {balance}.");
             }
 
             var user = await _dbContext.Users.FindAsync(userId);
             if (user == null)
             {
+                _logger.LogWarning("User {UserId} not found", userId);
                 throw new NotFoundException("User not found.");
             }
 
@@ -154,6 +164,7 @@ namespace Spotter.Services
             _dbContext.SpotterPoints.Add(entry);
             user.SpotterPointsBalance -= points;
             await _dbContext.SaveChangesAsync();
+            _logger.LogInformation("User {UserId} redeemed {Points} points", userId, points);
         }
     }
 }

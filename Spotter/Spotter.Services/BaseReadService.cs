@@ -11,6 +11,11 @@ namespace Spotter.Services
         where TEntity : class
         where TSearch : BaseSearchObject
     {
+        private static readonly HashSet<string> _allowedSortColumns = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Id", "CreatedAt", "UpdatedAt", "Name", "Title", "StartsAt", "Price", "Rating"
+        };
+
         protected readonly MapsterMapper.IMapper _mapper;
         protected readonly SpotterDbContext _dbContext;
 
@@ -38,6 +43,8 @@ namespace Spotter.Services
 
             if (!string.IsNullOrWhiteSpace(search?.SortBy))
             {
+                if (!_allowedSortColumns.Contains(search.SortBy))
+                    throw new ClientException($"Invalid sort column: {search.SortBy}");
                 query = query.OrderBy(search.SortBy);
             }
 

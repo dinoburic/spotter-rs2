@@ -1,6 +1,7 @@
 using FluentValidation;
 using MapsterMapper;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Spotter.Model.Enums;
 using Spotter.Model.Exceptions;
 using Spotter.Model.Requests;
@@ -20,6 +21,7 @@ namespace Spotter.Services
         private readonly INotificationService _notificationService;
         private readonly ISpotterPointsService _spotterPointsService;
         private readonly IBadgeService _badgeService;
+        private readonly ILogger<ReviewService> _logger;
 
         public ReviewService(
             SpotterDbContext dbContext,
@@ -29,7 +31,8 @@ namespace Spotter.Services
             IValidator<ReviewUpdateRequest> updateValidator,
             INotificationService notificationService,
             ISpotterPointsService spotterPointsService,
-            IBadgeService badgeService)
+            IBadgeService badgeService,
+            ILogger<ReviewService> logger)
         {
             _dbContext = dbContext;
             _mapper = mapper;
@@ -39,6 +42,7 @@ namespace Spotter.Services
             _notificationService = notificationService;
             _spotterPointsService = spotterPointsService;
             _badgeService = badgeService;
+            _logger = logger;
         }
 
         public async Task<PageResult<ReviewResponse>> GetAllAsync(ReviewSearch? search = null)
@@ -99,16 +103,19 @@ namespace Spotter.Services
 
         public async Task<ReviewResponse> InsertAsync(ReviewInsertRequest request)
         {
+            var userId = _currentUserService.GetUserId();
+            _logger.LogInformation("Creating review for event {EventId} by user {UserId}", request.EventId, userId);
             await _insertValidator.ValidateAndThrowAsync(request);
 
             var eventEntity = await _dbContext.Events.FirstOrDefaultAsync(e => e.Id == request.EventId && !e.IsDeleted);
             if (eventEntity == null)
+            {
+                _logger.LogWarning("Event {EventId} not found", request.EventId);
                 throw new NotFoundException("Event not found.");
+            }
 
             if (eventEntity.Status != EventStatus.Completed && eventEntity.Status != EventStatus.Active)
                 throw new ClientException("Reviews can only be left for active or completed events.");
-
-            var userId = _currentUserService.GetUserId();
 
             var hasAttended = await _dbContext.Tickets.AnyAsync(t =>
                 t.UserId == userId &&
@@ -156,11 +163,13 @@ namespace Spotter.Services
 
             await _badgeService.EvaluateAndAwardAsync(userId);
 
+            _logger.LogInformation("Review {ReviewId} created successfully", review.Id);
             return _mapper.Map<ReviewResponse>(createdReview);
         }
 
         public async Task<ReviewResponse> UpdateAsync(int id, ReviewUpdateRequest request)
         {
+            _logger.LogInformation("Updating review {ReviewId}", id);
             await _updateValidator.ValidateAndThrowAsync(request);
 
             var review = await _dbContext.Reviews
@@ -170,7 +179,10 @@ namespace Spotter.Services
                 .FirstOrDefaultAsync(r => r.Id == id);
 
             if (review == null)
+            {
+                _logger.LogWarning("Review {ReviewId} not found", id);
                 throw new NotFoundException("Review not found.");
+            }
 
             if (review.UserId != _currentUserService.GetUserId() && !_currentUserService.IsAdmin())
                 throw new ClientException("You can only edit your own reviews.");
@@ -180,17 +192,22 @@ namespace Spotter.Services
 
             await _dbContext.SaveChangesAsync();
 
+            _logger.LogInformation("Review {ReviewId} updated successfully", id);
             return _mapper.Map<ReviewResponse>(review);
         }
 
         public async Task DeleteAsync(int id)
         {
+            _logger.LogInformation("Deleting review {ReviewId}", id);
             var review = await _dbContext.Reviews
                 .Where(r => !r.IsDeleted)
                 .FirstOrDefaultAsync(r => r.Id == id);
 
             if (review == null)
+            {
+                _logger.LogWarning("Review {ReviewId} not found", id);
                 throw new NotFoundException("Review not found.");
+            }
 
             if (review.UserId != _currentUserService.GetUserId() && !_currentUserService.IsAdmin())
                 throw new ClientException("You can only delete your own reviews.");
@@ -207,6 +224,7 @@ namespace Spotter.Services
             {
                 await _spotterPointsService.RedeemAsync(review.UserId, 10, review.Id.ToString());
             }
+            _logger.LogInformation("Review {ReviewId} deleted (soft) successfully", id);
         }
     }
 }

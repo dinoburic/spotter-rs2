@@ -1,5 +1,6 @@
 using MapsterMapper;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Spotter.Model.Enums;
 using Spotter.Model.Exceptions;
 using Spotter.Model.Responses;
@@ -16,19 +17,22 @@ namespace Spotter.Services
         private readonly ICurrentUserService _currentUserService;
         private readonly TicketStateMachine _ticketStateMachine;
         private readonly IBadgeService _badgeService;
+        private readonly ILogger<TicketService> _logger;
 
         public TicketService(
             SpotterDbContext dbContext,
             IMapper mapper,
             ICurrentUserService currentUserService,
             TicketStateMachine ticketStateMachine,
-            IBadgeService badgeService)
+            IBadgeService badgeService,
+            ILogger<TicketService> logger)
         {
             _dbContext = dbContext;
             _mapper = mapper;
             _currentUserService = currentUserService;
             _ticketStateMachine = ticketStateMachine;
             _badgeService = badgeService;
+            _logger = logger;
         }
 
         public async Task<PageResult<TicketResponse>> GetAllAsync(TicketSearch? search = null)
@@ -97,6 +101,7 @@ namespace Spotter.Services
 
         public async Task<TicketResponse> UseTicketAsync(string qrCodePayload)
         {
+            _logger.LogInformation("Using ticket with QR payload");
             if (!_currentUserService.IsAdmin())
                 throw new ClientException("Only organizers or admins can scan tickets.");
 
@@ -107,7 +112,10 @@ namespace Spotter.Services
                 .FirstOrDefaultAsync(t => t.QrCodePayload == qrCodePayload);
 
             if (ticket == null)
+            {
+                _logger.LogWarning("Ticket not found for QR payload");
                 throw new NotFoundException("Ticket not found.");
+            }
 
             if (ticket.OrderItem.Order.Event.StartsAt > DateTime.UtcNow.AddHours(2))
                 throw new ClientException("Event has not started yet.");
@@ -118,6 +126,7 @@ namespace Spotter.Services
 
             await _badgeService.EvaluateAndAwardAsync(ticket.UserId);
 
+            _logger.LogInformation("Ticket {TicketId} used successfully", ticket.Id);
             return _mapper.Map<TicketResponse>(ticket);
         }
     }

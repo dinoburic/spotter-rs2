@@ -1,5 +1,6 @@
 using MapsterMapper;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Spotter.Model.Enums;
 using Spotter.Model.Exceptions;
 using Spotter.Model.Responses;
@@ -14,17 +15,20 @@ namespace Spotter.Services
         private readonly IMapper _mapper;
         private readonly ICurrentUserService _currentUserService;
         private readonly INotificationService _notificationService;
+        private readonly ILogger<FriendshipService> _logger;
 
         public FriendshipService(
             SpotterDbContext dbContext,
             IMapper mapper,
             ICurrentUserService currentUserService,
-            INotificationService notificationService)
+            INotificationService notificationService,
+            ILogger<FriendshipService> logger)
         {
             _dbContext = dbContext;
             _mapper = mapper;
             _currentUserService = currentUserService;
             _notificationService = notificationService;
+            _logger = logger;
         }
 
         public async Task<PageResult<FriendshipResponse>> GetMyFriendshipsAsync(FriendshipSearch? search = null)
@@ -68,6 +72,7 @@ namespace Spotter.Services
         public async Task<FriendshipResponse> SendRequestAsync(int addresseeId)
         {
             var userId = _currentUserService.GetUserId();
+            _logger.LogInformation("User {UserId} sending friend request to {AddresseeId}", userId, addresseeId);
 
             if (addresseeId == userId)
                 throw new ClientException("You cannot send a friend request to yourself.");
@@ -108,18 +113,23 @@ namespace Spotter.Services
                 referenceId: friendship.Id.ToString()
             );
 
+            _logger.LogInformation("Friend request {FriendshipId} sent successfully", friendship.Id);
             return _mapper.Map<FriendshipResponse>(createdFriendship);
         }
 
         public async Task<FriendshipResponse> AcceptAsync(int friendshipId)
         {
+            _logger.LogInformation("Accepting friendship {FriendshipId}", friendshipId);
             var friendship = await _dbContext.Friendships
                 .Include(f => f.Requester)
                 .Include(f => f.Addressee)
                 .FirstOrDefaultAsync(f => f.Id == friendshipId);
 
             if (friendship == null)
+            {
+                _logger.LogWarning("Friendship {FriendshipId} not found", friendshipId);
                 throw new NotFoundException("Friendship not found.");
+            }
 
             if (friendship.AddresseeId != _currentUserService.GetUserId())
                 throw new ClientException("Only the recipient can accept a friend request.");
@@ -141,18 +151,23 @@ namespace Spotter.Services
                 referenceId: friendship.Id.ToString()
             );
 
+            _logger.LogInformation("Friendship {FriendshipId} accepted successfully", friendshipId);
             return _mapper.Map<FriendshipResponse>(friendship);
         }
 
         public async Task<FriendshipResponse> RejectAsync(int friendshipId)
         {
+            _logger.LogInformation("Rejecting friendship {FriendshipId}", friendshipId);
             var friendship = await _dbContext.Friendships
                 .Include(f => f.Requester)
                 .Include(f => f.Addressee)
                 .FirstOrDefaultAsync(f => f.Id == friendshipId);
 
             if (friendship == null)
+            {
+                _logger.LogWarning("Friendship {FriendshipId} not found", friendshipId);
                 throw new NotFoundException("Friendship not found.");
+            }
 
             if (friendship.AddresseeId != _currentUserService.GetUserId())
                 throw new ClientException("Only the recipient can reject a friend request.");
@@ -164,19 +179,24 @@ namespace Spotter.Services
             friendship.RespondedAt = DateTime.UtcNow;
 
             await _dbContext.SaveChangesAsync();
+            _logger.LogInformation("Friendship {FriendshipId} rejected", friendshipId);
 
             return _mapper.Map<FriendshipResponse>(friendship);
         }
 
         public async Task<FriendshipResponse> BlockAsync(int friendshipId)
         {
+            _logger.LogInformation("Blocking friendship {FriendshipId}", friendshipId);
             var friendship = await _dbContext.Friendships
                 .Include(f => f.Requester)
                 .Include(f => f.Addressee)
                 .FirstOrDefaultAsync(f => f.Id == friendshipId);
 
             if (friendship == null)
+            {
+                _logger.LogWarning("Friendship {FriendshipId} not found", friendshipId);
                 throw new NotFoundException("Friendship not found.");
+            }
 
             var userId = _currentUserService.GetUserId();
             if (friendship.RequesterId != userId && friendship.AddresseeId != userId)
@@ -192,10 +212,14 @@ namespace Spotter.Services
 
         public async Task DeleteAsync(int friendshipId)
         {
+            _logger.LogInformation("Deleting friendship {FriendshipId}", friendshipId);
             var friendship = await _dbContext.Friendships.FirstOrDefaultAsync(f => f.Id == friendshipId);
 
             if (friendship == null)
+            {
+                _logger.LogWarning("Friendship {FriendshipId} not found", friendshipId);
                 throw new NotFoundException("Friendship not found.");
+            }
 
             var userId = _currentUserService.GetUserId();
             if (friendship.RequesterId != userId && friendship.AddresseeId != userId)

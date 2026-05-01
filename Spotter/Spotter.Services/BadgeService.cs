@@ -1,5 +1,6 @@
 using MapsterMapper;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Spotter.Model.Enums;
 using Spotter.Model.Responses;
 using Spotter.Model.Static;
@@ -13,17 +14,20 @@ namespace Spotter.Services
         private readonly IMapper _mapper;
         private readonly ICurrentUserService _currentUserService;
         private readonly INotificationService _notificationService;
+        private readonly ILogger<BadgeService> _logger;
 
         public BadgeService(
             SpotterDbContext dbContext,
             IMapper mapper,
             ICurrentUserService currentUserService,
-            INotificationService notificationService)
+            INotificationService notificationService,
+            ILogger<BadgeService> logger)
         {
             _dbContext = dbContext;
             _mapper = mapper;
             _currentUserService = currentUserService;
             _notificationService = notificationService;
+            _logger = logger;
         }
 
         public async Task<List<BadgeResponse>> GetAllBadgesAsync()
@@ -46,6 +50,7 @@ namespace Spotter.Services
 
         public async Task EvaluateAndAwardAsync(int userId)
         {
+            _logger.LogInformation("Evaluating badges for user {UserId}", userId);
             var earnedBadgeIds = await _dbContext.UserBadges
                 .Where(ub => ub.UserId == userId)
                 .Select(ub => ub.BadgeId)
@@ -171,6 +176,7 @@ namespace Spotter.Services
 
         private async Task AwardBadgeAsync(int userId, Badge badge)
         {
+            _logger.LogInformation("Awarding badge {BadgeName} to user {UserId}", badge.Name, userId);
             _dbContext.UserBadges.Add(new UserBadge
             {
                 UserId = userId,

@@ -1,6 +1,7 @@
 using FluentValidation;
 using MapsterMapper;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Spotter.Model.Enums;
 using Spotter.Model.Exceptions;
 using Spotter.Model.Requests;
@@ -19,6 +20,7 @@ namespace Spotter.Services
         private readonly ReservationStateMachine _reservationStateMachine;
         private readonly INotificationService _notificationService;
         private readonly IValidator<ReservationInsertRequest> _validator;
+        private readonly ILogger<ReservationService> _logger;
 
         public ReservationService(
             SpotterDbContext dbContext,
@@ -26,7 +28,8 @@ namespace Spotter.Services
             ICurrentUserService currentUserService,
             ReservationStateMachine reservationStateMachine,
             INotificationService notificationService,
-            IValidator<ReservationInsertRequest> validator)
+            IValidator<ReservationInsertRequest> validator,
+            ILogger<ReservationService> logger)
         {
             _dbContext = dbContext;
             _mapper = mapper;
@@ -34,6 +37,7 @@ namespace Spotter.Services
             _reservationStateMachine = reservationStateMachine;
             _notificationService = notificationService;
             _validator = validator;
+            _logger = logger;
         }
 
         public async Task<PageResult<ReservationResponse>> GetAllAsync(ReservationSearch? search = null)
@@ -103,59 +107,74 @@ namespace Spotter.Services
 
         public async Task<ReservationResponse> CreateAsync(ReservationInsertRequest request)
         {
-            await _validator.ValidateAndThrowAsync(request);
-
-            var eventEntity = await _dbContext.Events
-                .FirstOrDefaultAsync(e => e.Id == request.EventId && !e.IsDeleted);
-
-            if (eventEntity == null)
-                throw new NotFoundException("Event not found.");
-
-            if (eventEntity.Status != EventStatus.Active)
-                throw new ClientException("Reservations can only be made for active events.");
-
             var userId = _currentUserService.GetUserId();
-            var hasDuplicate = await _dbContext.Reservations.AnyAsync(r =>
-                r.UserId == userId &&
-                r.EventId == request.EventId &&
-                !r.IsDeleted &&
-                r.Status != ReservationStatus.Cancelled);
+            _logger.LogInformation("Creating reservation for event {EventId} by user {UserId}", request.EventId, userId);
 
-            if (hasDuplicate)
-                throw new ClientException("You already have an active reservation for this event.");
-
-            var reservation = new Reservation
+            try
             {
-                UserId = userId,
-                EventId = request.EventId,
-                Status = ReservationStatus.Pending,
-                AuditNote = request.Note,
-                CreatedAt = DateTime.UtcNow,
-                IsDeleted = false
-            };
+                await _validator.ValidateAndThrowAsync(request);
 
-            _dbContext.Reservations.Add(reservation);
-            await _dbContext.SaveChangesAsync();
+                var eventEntity = await _dbContext.Events
+                    .FirstOrDefaultAsync(e => e.Id == request.EventId && !e.IsDeleted);
 
-            await _notificationService.CreateAsync(
-                userId: userId,
-                title: "Reservation Submitted",
-                body: $"Your reservation for {eventEntity.Title} is pending approval.",
-                type: NotificationType.General,
-                referenceId: reservation.Id.ToString()
-            );
+                if (eventEntity == null)
+                {
+                    _logger.LogWarning("Event {EventId} not found", request.EventId);
+                    throw new NotFoundException("Event not found.");
+                }
 
-            var createdReservation = await _dbContext.Reservations
-                .Include(r => r.User)
-                .Include(r => r.Event)
-                .Include(r => r.ApprovedBy)
-                .FirstAsync(r => r.Id == reservation.Id);
+                if (eventEntity.Status != EventStatus.Active)
+                    throw new ClientException("Reservations can only be made for active events.");
 
-            return _mapper.Map<ReservationResponse>(createdReservation);
+                var hasDuplicate = await _dbContext.Reservations.AnyAsync(r =>
+                    r.UserId == userId &&
+                    r.EventId == request.EventId &&
+                    !r.IsDeleted &&
+                    r.Status != ReservationStatus.Cancelled);
+
+                if (hasDuplicate)
+                    throw new ClientException("You already have an active reservation for this event.");
+
+                var reservation = new Reservation
+                {
+                    UserId = userId,
+                    EventId = request.EventId,
+                    Status = ReservationStatus.Pending,
+                    AuditNote = request.Note,
+                    CreatedAt = DateTime.UtcNow,
+                    IsDeleted = false
+                };
+
+                _dbContext.Reservations.Add(reservation);
+                await _dbContext.SaveChangesAsync();
+
+                await _notificationService.CreateAsync(
+                    userId: userId,
+                    title: "Reservation Submitted",
+                    body: $"Your reservation for {eventEntity.Title} is pending approval.",
+                    type: NotificationType.General,
+                    referenceId: reservation.Id.ToString()
+                );
+
+                var createdReservation = await _dbContext.Reservations
+                    .Include(r => r.User)
+                    .Include(r => r.Event)
+                    .Include(r => r.ApprovedBy)
+                    .FirstAsync(r => r.Id == reservation.Id);
+
+                _logger.LogInformation("Reservation {ReservationId} created successfully", reservation.Id);
+                return _mapper.Map<ReservationResponse>(createdReservation);
+            }
+            catch (Exception ex) when (ex is not ClientException and not NotFoundException)
+            {
+                _logger.LogError(ex, "Failed to create reservation for user {UserId}", userId);
+                throw;
+            }
         }
 
         public async Task<ReservationResponse> ConfirmAsync(int id, string? auditNote)
         {
+            _logger.LogInformation("Confirming reservation {ReservationId}", id);
             if (!_currentUserService.IsAdmin())
                 throw new ClientException("Only admins can confirm reservations.");
 
@@ -166,7 +185,10 @@ namespace Spotter.Services
                 .FirstOrDefaultAsync(r => r.Id == id && !r.IsDeleted);
 
             if (reservation == null)
+            {
+                _logger.LogWarning("Reservation {ReservationId} not found", id);
                 throw new NotFoundException("Reservation not found.");
+            }
 
             _reservationStateMachine.Transition(reservation, ReservationStatus.Confirmed);
             reservation.ApprovedByUserId = _currentUserService.GetUserId();
@@ -188,11 +210,13 @@ namespace Spotter.Services
                 .Include(r => r.ApprovedBy)
                 .FirstAsync(r => r.Id == id);
 
+            _logger.LogInformation("Reservation {ReservationId} confirmed successfully", id);
             return _mapper.Map<ReservationResponse>(reservation);
         }
 
         public async Task<ReservationResponse> CancelAsync(int id, string? auditNote)
         {
+            _logger.LogInformation("Cancelling reservation {ReservationId}", id);
             var reservation = await _dbContext.Reservations
                 .Include(r => r.User)
                 .Include(r => r.Event)

@@ -1,5 +1,6 @@
 using MapsterMapper;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Spotter.Model.Exceptions;
 using Spotter.Model.Responses;
 using Spotter.Model.SearchObjects;
@@ -12,15 +13,18 @@ namespace Spotter.Services
         private readonly SpotterDbContext _dbContext;
         private readonly IMapper _mapper;
         private readonly ICurrentUserService _currentUserService;
+        private readonly ILogger<FavoriteService> _logger;
 
         public FavoriteService(
             SpotterDbContext dbContext,
             IMapper mapper,
-            ICurrentUserService currentUserService)
+            ICurrentUserService currentUserService,
+            ILogger<FavoriteService> logger)
         {
             _dbContext = dbContext;
             _mapper = mapper;
             _currentUserService = currentUserService;
+            _logger = logger;
         }
 
         public async Task<PageResult<FavoriteResponse>> GetMyFavoritesAsync(FavoriteSearch? search = null)
@@ -62,11 +66,15 @@ namespace Spotter.Services
 
         public async Task<FavoriteResponse> AddFavoriteAsync(int eventId)
         {
+            var userId = _currentUserService.GetUserId();
+            _logger.LogInformation("Adding favorite event {EventId} for user {UserId}", eventId, userId);
+
             var eventEntity = await _dbContext.Events.FirstOrDefaultAsync(e => e.Id == eventId && !e.IsDeleted);
             if (eventEntity == null)
+            {
+                _logger.LogWarning("Event {EventId} not found", eventId);
                 throw new NotFoundException("Event not found.");
-
-            var userId = _currentUserService.GetUserId();
+            }
 
             var exists = await _dbContext.Favorites.AnyAsync(f => f.UserId == userId && f.EventId == eventId);
             if (exists)
@@ -86,21 +94,27 @@ namespace Spotter.Services
                 .Include(f => f.Event)
                 .FirstAsync(f => f.Id == favorite.Id);
 
+            _logger.LogInformation("Favorite {FavoriteId} added successfully", favorite.Id);
             return _mapper.Map<FavoriteResponse>(createdFavorite);
         }
 
         public async Task RemoveFavoriteAsync(int eventId)
         {
             var userId = _currentUserService.GetUserId();
+            _logger.LogInformation("Removing favorite event {EventId} for user {UserId}", eventId, userId);
 
             var favorite = await _dbContext.Favorites
                 .FirstOrDefaultAsync(f => f.UserId == userId && f.EventId == eventId);
 
             if (favorite == null)
+            {
+                _logger.LogWarning("Favorite for event {EventId} not found", eventId);
                 throw new NotFoundException("Favorite not found.");
+            }
 
             _dbContext.Favorites.Remove(favorite);
             await _dbContext.SaveChangesAsync();
+            _logger.LogInformation("Favorite for event {EventId} removed successfully", eventId);
         }
     }
 }

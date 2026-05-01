@@ -1,5 +1,6 @@
 using MapsterMapper;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Spotter.Model.Enums;
 using Spotter.Model.Exceptions;
 using Spotter.Model.Requests;
@@ -15,17 +16,20 @@ namespace Spotter.Services
         private readonly IMapper _mapper;
         private readonly ICurrentUserService _currentUserService;
         private readonly INotificationService _notificationService;
+        private readonly ILogger<WaitlistService> _logger;
 
         public WaitlistService(
             SpotterDbContext dbContext,
             IMapper mapper,
             ICurrentUserService currentUserService,
-            INotificationService notificationService)
+            INotificationService notificationService,
+            ILogger<WaitlistService> logger)
         {
             _dbContext = dbContext;
             _mapper = mapper;
             _currentUserService = currentUserService;
             _notificationService = notificationService;
+            _logger = logger;
         }
 
         public async Task<PageResult<WaitlistEntryResponse>> GetAllAsync(WaitlistSearch? search = null)
@@ -75,6 +79,9 @@ namespace Spotter.Services
 
         public async Task<WaitlistEntryResponse> JoinAsync(WaitlistJoinRequest request)
         {
+            var userId = _currentUserService.GetUserId();
+            _logger.LogInformation("User {UserId} joining waitlist for event {EventId}, ticket type {TicketTypeId}", userId, request.EventId, request.TicketTypeId);
+
             if (request.EventId <= 0)
             {
                 throw new ClientException("EventId must be greater than 0.");
@@ -88,6 +95,7 @@ namespace Spotter.Services
             var eventEntity = await _dbContext.Events.FirstOrDefaultAsync(e => e.Id == request.EventId && !e.IsDeleted);
             if (eventEntity == null)
             {
+                _logger.LogWarning("Event {EventId} not found", request.EventId);
                 throw new NotFoundException("Event not found.");
             }
 
@@ -107,13 +115,12 @@ namespace Spotter.Services
                 throw new ClientException("Tickets are still available for this type. Purchase directly.");
             }
 
-            var userId = _currentUserService.GetUserId();
-
             var alreadyOnWaitlist = await _dbContext.WaitlistEntries
                 .AnyAsync(we => we.UserId == userId && we.TicketTypeId == request.TicketTypeId);
 
             if (alreadyOnWaitlist)
             {
+                _logger.LogWarning("User {UserId} already on waitlist for ticket type {TicketTypeId}", userId, request.TicketTypeId);
                 throw new ClientException("You are already on the waitlist for this ticket type.");
             }
 
@@ -152,10 +159,12 @@ namespace Spotter.Services
 
         public async Task LeaveAsync(int entryId)
         {
+            _logger.LogInformation("Leaving waitlist entry {EntryId}", entryId);
             var entry = await _dbContext.WaitlistEntries.FirstOrDefaultAsync(we => we.Id == entryId);
 
             if (entry == null)
             {
+                _logger.LogWarning("Waitlist entry {EntryId} not found", entryId);
                 throw new NotFoundException("Waitlist entry not found.");
             }
 
@@ -183,6 +192,7 @@ namespace Spotter.Services
 
         public async Task NotifyNextInLineAsync(int ticketTypeId)
         {
+            _logger.LogInformation("Notifying next in line for ticket type {TicketTypeId}", ticketTypeId);
             var entry = await _dbContext.WaitlistEntries
                 .Include(we => we.TicketType)
                 .ThenInclude(tt => tt.Event)
@@ -192,6 +202,7 @@ namespace Spotter.Services
 
             if (entry == null)
             {
+                _logger.LogInformation("No unnotified waitlist entries for ticket type {TicketTypeId}", ticketTypeId);
                 return;
             }
 
@@ -199,6 +210,7 @@ namespace Spotter.Services
             entry.NotifiedAt = DateTime.UtcNow;
             await _dbContext.SaveChangesAsync();
 
+            _logger.LogInformation("Notified user {UserId} for waitlist entry {EntryId}", entry.UserId, entry.Id);
             await _notificationService.CreateAsync(
                 entry.UserId,
                 "Spot Available!",

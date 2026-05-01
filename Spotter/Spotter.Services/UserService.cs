@@ -1,5 +1,6 @@
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Spotter.Common.Services.CryptoService;
 using Spotter.Model.Exceptions;
 using Spotter.Model.Requests;
@@ -15,11 +16,13 @@ namespace Spotter.Services
     public class UserService : BaseCRUDService<User, UserResponse, UserSearch, UserInsertRequest, UserUpdateRequest>, IUserService
     {
         private readonly ICryptoService _cryptoService;
+        private readonly ILogger<UserService> _logger;
 
-        public UserService(SpotterDbContext dbContext, MapsterMapper.IMapper mapper, IValidator<UserInsertRequest> insertValidator, IValidator<UserUpdateRequest> updateValidator, ICryptoService cryptoService)
+        public UserService(SpotterDbContext dbContext, MapsterMapper.IMapper mapper, IValidator<UserInsertRequest> insertValidator, IValidator<UserUpdateRequest> updateValidator, ICryptoService cryptoService, ILogger<UserService> logger)
             : base(dbContext, mapper, insertValidator, updateValidator)
         {
             _cryptoService = cryptoService;
+            _logger = logger;
         }
 
         protected override IQueryable<User> ApplyFilters(IQueryable<User> query, UserSearch? search)
@@ -53,6 +56,7 @@ namespace Spotter.Services
 
         public override async Task<UserResponse> InsertAsync(UserInsertRequest request)
         {
+            _logger.LogInformation("Creating user {Username}", request.Username);
             await _insertValidator.ValidateAndThrowAsync(request);
 
             if (await _dbContext.Users.AnyAsync(u => u.Email == request.Email))
@@ -67,16 +71,21 @@ namespace Spotter.Services
             _dbContext.Users.Add(entity);
             await _dbContext.SaveChangesAsync();
 
+            _logger.LogInformation("User {UserId} created successfully", entity.Id);
             return _mapper.Map<UserResponse>(entity);
         }
 
         public override async Task<UserResponse> UpdateAsync(int id, UserUpdateRequest request)
         {
+            _logger.LogInformation("Updating user {UserId}", id);
             await _updateValidator.ValidateAndThrowAsync(request);
 
             var entity = await _dbContext.Users.FindAsync(id);
             if (entity == null)
+            {
+                _logger.LogWarning("User {UserId} not found", id);
                 throw new NotFoundException($"User with id {id} not found.");
+            }
 
             if (await _dbContext.Users.AnyAsync(u => u.Email == request.Email && u.Id != id))
                 throw new ClientException($"Email '{request.Email}' is already in use.");
@@ -89,17 +98,23 @@ namespace Spotter.Services
             _dbContext.Users.Update(entity);
             await _dbContext.SaveChangesAsync();
 
+            _logger.LogInformation("User {UserId} updated successfully", id);
             return _mapper.Map<UserResponse>(entity);
         }
 
         public override async Task DeleteAsync(int id)
         {
+            _logger.LogInformation("Deleting user {UserId}", id);
             var entity = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == id);
             if (entity == null)
+            {
+                _logger.LogWarning("User {UserId} not found", id);
                 throw new NotFoundException($"User with id {id} not found.");
+            }
 
             _dbContext.Users.Remove(entity);
             await _dbContext.SaveChangesAsync();
+            _logger.LogInformation("User {UserId} deleted successfully", id);
         }
 
         public async Task<UserSensitveResponse?> GetByUsernameAsync(string username)

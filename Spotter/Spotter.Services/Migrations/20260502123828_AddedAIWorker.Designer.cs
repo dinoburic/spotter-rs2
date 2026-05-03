@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Spotter.Services.Database;
 
@@ -11,9 +12,11 @@ using Spotter.Services.Database;
 namespace Spotter.Services.Migrations
 {
     [DbContext(typeof(SpotterDbContext))]
-    partial class SpotterDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260502123828_AddedAIWorker")]
+    partial class AddedAIWorker
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -281,10 +284,21 @@ namespace Spotter.Services.Migrations
                     b.Property<DateTime>("EndsAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<bool>("GeocodingPending")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<bool>("IsDeleted")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
                         .HasDefaultValue(false);
+
+                    b.Property<decimal?>("Latitude")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("Longitude")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<int>("OrganizerId")
                         .HasColumnType("int");
@@ -333,6 +347,7 @@ namespace Spotter.Services.Migrations
                             CreatedAt = new DateTime(2026, 4, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Description = "An electrifying rock concert featuring the best local and regional bands.",
                             EndsAt = new DateTime(2026, 5, 15, 23, 0, 0, 0, DateTimeKind.Utc),
+                            GeocodingPending = false,
                             IsDeleted = false,
                             OrganizerId = 2,
                             StartsAt = new DateTime(2026, 5, 15, 20, 0, 0, 0, DateTimeKind.Utc),
@@ -349,6 +364,7 @@ namespace Spotter.Services.Migrations
                             CreatedAt = new DateTime(2026, 4, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Description = "Annual city marathon through the historic streets of Mostar.",
                             EndsAt = new DateTime(2026, 5, 20, 14, 0, 0, 0, DateTimeKind.Utc),
+                            GeocodingPending = false,
                             IsDeleted = false,
                             OrganizerId = 2,
                             StartsAt = new DateTime(2026, 5, 20, 8, 0, 0, 0, DateTimeKind.Utc),
@@ -365,6 +381,7 @@ namespace Spotter.Services.Migrations
                             CreatedAt = new DateTime(2026, 4, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Description = "Shakespeare's timeless tragedy performed by the National Theatre ensemble.",
                             EndsAt = new DateTime(2026, 6, 1, 22, 0, 0, 0, DateTimeKind.Utc),
+                            GeocodingPending = false,
                             IsDeleted = false,
                             OrganizerId = 2,
                             StartsAt = new DateTime(2026, 6, 1, 19, 0, 0, 0, DateTimeKind.Utc),
@@ -381,6 +398,7 @@ namespace Spotter.Services.Migrations
                             CreatedAt = new DateTime(2026, 4, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Description = "A full-day technology conference covering AI, cloud and modern software development.",
                             EndsAt = new DateTime(2026, 5, 25, 17, 0, 0, 0, DateTimeKind.Utc),
+                            GeocodingPending = false,
                             IsDeleted = false,
                             OrganizerId = 2,
                             StartsAt = new DateTime(2026, 5, 25, 10, 0, 0, 0, DateTimeKind.Utc),
@@ -397,6 +415,7 @@ namespace Spotter.Services.Migrations
                             CreatedAt = new DateTime(2026, 4, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Description = "Three days of local and international street food from over 40 vendors.",
                             EndsAt = new DateTime(2026, 5, 30, 20, 0, 0, 0, DateTimeKind.Utc),
+                            GeocodingPending = false,
                             IsDeleted = false,
                             OrganizerId = 2,
                             StartsAt = new DateTime(2026, 5, 30, 12, 0, 0, 0, DateTimeKind.Utc),
@@ -413,6 +432,7 @@ namespace Spotter.Services.Migrations
                             CreatedAt = new DateTime(2026, 4, 26, 0, 0, 0, 0, DateTimeKind.Utc),
                             Description = "An evening of stand-up comedy with the funniest comedians from across the region.",
                             EndsAt = new DateTime(2026, 5, 22, 23, 0, 0, 0, DateTimeKind.Utc),
+                            GeocodingPending = false,
                             IsDeleted = false,
                             OrganizerId = 2,
                             StartsAt = new DateTime(2026, 5, 22, 20, 0, 0, 0, DateTimeKind.Utc),
@@ -1400,11 +1420,6 @@ namespace Spotter.Services.Migrations
                     b.Property<int>("CityId")
                         .HasColumnType("int");
 
-                    b.Property<bool>("GeocodingPending")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(false);
-
                     b.Property<decimal?>("Latitude")
                         .HasColumnType("decimal(10,7)");
 
@@ -1428,7 +1443,6 @@ namespace Spotter.Services.Migrations
                             Id = 1,
                             Address = "Zmaja od Bosne bb, 71000 Sarajevo",
                             CityId = 1,
-                            GeocodingPending = false,
                             Latitude = 43.8563m,
                             Longitude = 18.4131m,
                             Name = "Arena Sarajevo"
@@ -1438,7 +1452,6 @@ namespace Spotter.Services.Migrations
                             Id = 2,
                             Address = "Bulevar 1 bb, 88000 Mostar",
                             CityId = 2,
-                            GeocodingPending = false,
                             Latitude = 43.3438m,
                             Longitude = 17.8078m,
                             Name = "Mostar Sports Hall"
@@ -1448,7 +1461,6 @@ namespace Spotter.Services.Migrations
                             Id = 3,
                             Address = "Kralja Petra I Karađorđevića 97, 78000 Banja Luka",
                             CityId = 3,
-                            GeocodingPending = false,
                             Latitude = 44.7722m,
                             Longitude = 17.1910m,
                             Name = "Boska Banja Luka"

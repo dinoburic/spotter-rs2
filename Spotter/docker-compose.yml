@@ -1,7 +1,7 @@
 services:
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: spotter
+    container_name: spotter-main
     env_file: .env
     environment:
       ACCEPT_EULA: "Y"
@@ -11,5 +11,49 @@ services:
     volumes:
       - sqlserver_data:/var/opt/mssql
 
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: spotter-rabbitmq
+    env_file: .env
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  worker:
+    build:
+      context: .
+      dockerfile: Spotter.Worker/Dockerfile
+    container_name: spotter-worker
+    env_file: .env
+    environment:
+      SPOTTER_CONNECTION_STRING: "Server=sqlserver,1433;Database=230006;User Id=sa;Password=qweasd123!;TrustServerCertificate=True;"
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USERNAME: ${SMTP_USERNAME}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_USE_SSL: ${SMTP_USE_SSL}
+    depends_on:
+      sqlserver:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+
 volumes:
   sqlserver_data:
+  rabbitmq_data:

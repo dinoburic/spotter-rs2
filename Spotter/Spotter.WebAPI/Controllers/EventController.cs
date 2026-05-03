@@ -37,7 +37,7 @@ namespace Spotter.WebAPI.Controllers
         }
 
         [HttpPost]
-        [Authorize(Roles = Roles.Organizer)]
+        [Authorize(Roles = $"{Roles.Organizer},{Roles.Admin}")]
         public async Task<ActionResult<EventResponse>> Insert([FromBody] EventInsertRequest request)
         {
             var result = await _eventService.InsertAsync(request);
@@ -45,7 +45,7 @@ namespace Spotter.WebAPI.Controllers
         }
 
         [HttpPut("{id}")]
-        [Authorize]
+        [Authorize(Roles = $"{Roles.Organizer},{Roles.Admin}")]
         public async Task<ActionResult<EventResponse>> Update(int id, [FromBody] EventUpdateRequest request)
         {
             var result = await _eventService.UpdateAsync(id, request);
@@ -53,7 +53,7 @@ namespace Spotter.WebAPI.Controllers
         }
 
         [HttpDelete("{id}")]
-        [Authorize]
+        [Authorize(Roles = $"{Roles.Organizer},{Roles.Admin}")]
         public async Task<IActionResult> Delete(int id)
         {
             await _eventService.DeleteAsync(id);
@@ -61,7 +61,7 @@ namespace Spotter.WebAPI.Controllers
         }
 
         [HttpPost("{id}/activate")]
-        [Authorize]
+        [Authorize(Roles = $"{Roles.Organizer},{Roles.Admin}")]
         public async Task<ActionResult<EventResponse>> Activate(int id)
         {
             var result = await _eventService.ActivateAsync(id);

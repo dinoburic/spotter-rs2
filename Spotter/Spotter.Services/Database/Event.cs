@@ -18,7 +18,6 @@ namespace Spotter.Services.Database
         public EventStatus Status { get; set; }
         public string? CoverImageUrl { get; set; }
         public int TotalCapacity { get; set; }
-        public bool GeocodingPending { get; set; }
         public bool IsDeleted { get; set; }
         public DateTime? DeletedAt { get; set; }
         public DateTime CreatedAt { get; set; }

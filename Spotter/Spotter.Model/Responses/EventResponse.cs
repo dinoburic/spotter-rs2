@@ -23,7 +23,6 @@ namespace Spotter.Model.Responses
         public string StatusName { get; set; } = string.Empty;
         public int TotalCapacity { get; set; }
         public int AvailableCapacity { get; set; }
-        public bool GeocodingPending { get; set; }
         public DateTime CreatedAt { get; set; }
     }
 }

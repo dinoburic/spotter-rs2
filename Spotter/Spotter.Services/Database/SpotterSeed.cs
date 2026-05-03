@@ -200,7 +200,8 @@ namespace Spotter.Services.Database
                     Address = "Zmaja od Bosne bb, 71000 Sarajevo",
                     CityId = 1,
                     Latitude = (decimal?)43.8563m,
-                    Longitude = (decimal?)18.4131m
+                    Longitude = (decimal?)18.4131m,
+                    GeocodingPending = false
                 },
                 new
                 {
@@ -209,7 +210,8 @@ namespace Spotter.Services.Database
                     Address = "Bulevar 1 bb, 88000 Mostar",
                     CityId = 2,
                     Latitude = (decimal?)43.3438m,
-                    Longitude = (decimal?)17.8078m
+                    Longitude = (decimal?)17.8078m,
+                    GeocodingPending = false
                 },
                 new
                 {
@@ -218,7 +220,8 @@ namespace Spotter.Services.Database
                     Address = "Kralja Petra I Karađorđevića 97, 78000 Banja Luka",
                     CityId = 3,
                     Latitude = (decimal?)44.7722m,
-                    Longitude = (decimal?)17.1910m
+                    Longitude = (decimal?)17.1910m,
+                    GeocodingPending = false
                 }
             );
         }
@@ -239,7 +242,6 @@ namespace Spotter.Services.Database
                     Status = EventStatus.Active,
                     CoverImageUrl = "https://picsum.photos/seed/1/800/400",
                     TotalCapacity = 2000,
-                    GeocodingPending = false,
                     IsDeleted = false,
                     DeletedAt = (DateTime?)null,
                     CreatedAt = new DateTime(2026, 4, 26, 0, 0, 0, DateTimeKind.Utc)
@@ -257,7 +259,6 @@ namespace Spotter.Services.Database
                     Status = EventStatus.Active,
                     CoverImageUrl = "https://picsum.photos/seed/2/800/400",
                     TotalCapacity = 500,
-                    GeocodingPending = false,
                     IsDeleted = false,
                     DeletedAt = (DateTime?)null,
                     CreatedAt = new DateTime(2026, 4, 26, 0, 0, 0, DateTimeKind.Utc)
@@ -275,7 +276,6 @@ namespace Spotter.Services.Database
                     Status = EventStatus.Draft,
                     CoverImageUrl = "https://picsum.photos/seed/3/800/400",
                     TotalCapacity = 400,
-                    GeocodingPending = false,
                     IsDeleted = false,
                     DeletedAt = (DateTime?)null,
                     CreatedAt = new DateTime(2026, 4, 26, 0, 0, 0, DateTimeKind.Utc)
@@ -293,7 +293,6 @@ namespace Spotter.Services.Database
                     Status = EventStatus.Active,
                     CoverImageUrl = "https://picsum.photos/seed/4/800/400",
                     TotalCapacity = 300,
-                    GeocodingPending = false,
                     IsDeleted = false,
                     DeletedAt = (DateTime?)null,
                     CreatedAt = new DateTime(2026, 4, 26, 0, 0, 0, DateTimeKind.Utc)
@@ -311,7 +310,6 @@ namespace Spotter.Services.Database
                     Status = EventStatus.Active,
                     CoverImageUrl = "https://picsum.photos/seed/5/800/400",
                     TotalCapacity = 1500,
-                    GeocodingPending = false,
                     IsDeleted = false,
                     DeletedAt = (DateTime?)null,
                     CreatedAt = new DateTime(2026, 4, 26, 0, 0, 0, DateTimeKind.Utc)
@@ -329,7 +327,6 @@ namespace Spotter.Services.Database
                     Status = EventStatus.Active,
                     CoverImageUrl = "https://picsum.photos/seed/6/800/400",
                     TotalCapacity = 600,
-                    GeocodingPending = false,
                     IsDeleted = false,
                     DeletedAt = (DateTime?)null,
                     CreatedAt = new DateTime(2026, 4, 26, 0, 0, 0, DateTimeKind.Utc)

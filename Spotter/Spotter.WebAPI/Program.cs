@@ -136,6 +136,7 @@ builder.Services.AddScoped<IReservationService, ReservationService>();
 builder.Services.AddScoped<ISpotterPointsService, SpotterPointsService>();
 builder.Services.AddScoped<IBadgeService, BadgeService>();
 builder.Services.AddScoped<IWaitlistService, WaitlistService>();
+builder.Services.AddSingleton<IRabbitMqPublisher, RabbitMqPublisher>();
 
 builder.Services.AddScoped<EventStateMachine>();
 builder.Services.AddScoped<OrderStateMachine>();
@@ -165,13 +166,15 @@ builder.Services.AddScoped<IValidator<WaitlistJoinRequest>, WaitlistJoinRequestV
 builder.Services.AddOpenApi();
 
 var jwtSecret = builder.Configuration["Jwt:Secret"]
-    ?? Environment.GetEnvironmentVariable("JWT_SECRET")
+    ?? builder.Configuration["JWT_SECRET"]
     ?? throw new InvalidOperationException("JWT Secret not configured.");
+
 var jwtIssuer = builder.Configuration["Jwt:Issuer"]
-    ?? Environment.GetEnvironmentVariable("JWT_ISSUER")
+    ?? builder.Configuration["JWT_ISSUER"]
     ?? throw new InvalidOperationException("JWT Issuer not configured.");
+
 var jwtAudience = builder.Configuration["Jwt:Audience"]
-    ?? Environment.GetEnvironmentVariable("JWT_AUDIENCE")
+    ?? builder.Configuration["JWT_AUDIENCE"]
     ?? throw new InvalidOperationException("JWT Audience not configured.");
 
 builder.Services.AddAuthentication(options =>

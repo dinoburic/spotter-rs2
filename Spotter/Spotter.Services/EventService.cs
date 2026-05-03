@@ -102,7 +102,6 @@ namespace Spotter.Services
             entity.OrganizerId = organizerId;
             entity.Status = EventStatus.Draft;
             entity.CreatedAt = DateTime.UtcNow;
-            entity.GeocodingPending = false;
             entity.IsDeleted = false;
 
             _dbContext.Events.Add(entity);

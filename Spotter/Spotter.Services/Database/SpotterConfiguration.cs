@@ -83,6 +83,7 @@ namespace Spotter.Services.Database
                 entity.Property(v => v.Address).IsRequired().HasMaxLength(500);
                 entity.Property(v => v.Latitude).HasColumnType("decimal(10,7)");
                 entity.Property(v => v.Longitude).HasColumnType("decimal(10,7)");
+                entity.Property(v => v.GeocodingPending).HasDefaultValue(false);
                 entity.HasOne(v => v.City)
                     .WithMany()
                     .HasForeignKey(v => v.CityId)
@@ -95,7 +96,6 @@ namespace Spotter.Services.Database
                 entity.Property(e => e.Description).IsRequired().HasMaxLength(2000);
                 entity.Property(e => e.CoverImageUrl).HasMaxLength(500);
                 entity.Property(e => e.Status).HasDefaultValue(EventStatus.Draft);
-                entity.Property(e => e.GeocodingPending).HasDefaultValue(false);
                 entity.Property(e => e.IsDeleted).HasDefaultValue(false);
                 entity.HasOne(e => e.Category)
                     .WithMany()

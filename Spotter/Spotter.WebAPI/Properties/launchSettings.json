@@ -7,7 +7,15 @@
       "launchBrowser": false,
       "applicationUrl": "http://localhost:5126",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "Jwt__Secret": "SpotterDevSecretKey2026AtLeast32Chars!",
+        "Jwt__Issuer": "Spotter",
+        "Jwt__Audience": "SpotterUsers",
+        "ConnectionStrings__DefaultConnection": "Server=localhost,1435;Database=230006;User Id=sa;Password=qweasd123!;TrustServerCertificate=True;",
+        "RABBITMQ_HOST": "localhost",
+        "RABBITMQ_PORT": "5672",
+        "RABBITMQ_USERNAME": "guest",
+        "RABBITMQ_PASSWORD": "guest"
       }
     },
     "https": {
@@ -16,7 +24,15 @@
       "launchBrowser": false,
       "applicationUrl": "https://localhost:7185;http://localhost:5126",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "Jwt__Secret": "SpotterDevSecretKey2026AtLeast32Chars!",
+        "Jwt__Issuer": "Spotter",
+        "Jwt__Audience": "SpotterUsers",
+        "ConnectionStrings__DefaultConnection": "Server=localhost,1435;Database=230006;User Id=sa;Password=qweasd123!;TrustServerCertificate=True;",
+        "RABBITMQ_HOST": "localhost",
+        "RABBITMQ_PORT": "5672",
+        "RABBITMQ_USERNAME": "guest",
+        "RABBITMQ_PASSWORD": "guest"
       }
     }
   }

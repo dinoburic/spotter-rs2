@@ -36,7 +36,7 @@ namespace Spotter.WebAPI.Controllers
         }
 
         [HttpPost]
-        [Authorize(Roles = Roles.Admin)]
+        [Authorize(Roles = $"{Roles.Organizer},{Roles.Admin}")]
         public async Task<ActionResult<VenueResponse>> Insert([FromBody] VenueInsertRequest request)
         {
             var result = await _venueService.InsertAsync(request);
@@ -44,7 +44,7 @@ namespace Spotter.WebAPI.Controllers
         }
 
         [HttpPut("{id}")]
-        [Authorize(Roles = Roles.Admin)]
+        [Authorize(Roles = $"{Roles.Organizer},{Roles.Admin}")]
         public async Task<ActionResult<VenueResponse>> Update(int id, [FromBody] VenueUpdateRequest request)
         {
             var result = await _venueService.UpdateAsync(id, request);

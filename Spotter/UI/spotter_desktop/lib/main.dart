@@ -1,201 +1,122 @@
-import 'package:Spotter_desktop/providers/auth_provider.dart';
-import 'package:Spotter_desktop/providers/product_provider.dart';
-import 'package:Spotter_desktop/providers/product_type_provider.dart';
-import 'package:Spotter_desktop/providers/unit_of_measure_provider.dart';
-import 'package:Spotter_desktop/screens/product_list.dart';
-import 'package:Spotter_desktop/utils/utils_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
-import 'providers/asset_provider.dart';
-import 'providers/category_provider.dart';
-import 'providers/user_provider.dart';
+import 'core/constants/app_colors.dart';
+import 'core/providers/auth_provider.dart';
+import 'core/providers/base_provider.dart';
+import 'core/providers/city_provider.dart';
+import 'core/providers/category_provider.dart';
+import 'core/providers/venue_provider.dart';
+import 'core/providers/event_provider.dart';
+import 'core/providers/ticket_type_provider.dart';
+import 'core/providers/order_provider.dart';
+import 'core/providers/ticket_provider.dart';
+import 'core/providers/review_provider.dart';
+import 'core/providers/reservation_provider.dart';
+import 'core/providers/user_provider.dart';
+import 'core/providers/dashboard_provider.dart';
+import 'features/auth/login_screen.dart';
+import 'features/dashboard/dashboard_screen.dart';
 
 void main() {
-  runApp(
-    MultiProvider(
+  runApp(const SpotterAdminApp());
+}
+
+class SpotterAdminApp extends StatelessWidget {
+  const SpotterAdminApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_)=> AuthProvider()),
-        ChangeNotifierProvider(create: (_)=> ProductProvider()),
-        ChangeNotifierProvider(create: (_)=> ProductTypeProvider()),
-        ChangeNotifierProvider(create: (_)=> UnitOfMeasureProvider()),
-        ChangeNotifierProvider(create: (_)=> AssetProvider()),
-        ChangeNotifierProvider(create: (_)=> CategoryProvider()),
-        ChangeNotifierProvider(create: (_)=> UserProvider()),
-      ],
-      child: const MyApp()));
-}
-
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  // This widget is the root of your application.
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: .fromSeed(seedColor: Colors.blue),
-      ),
-      home: LoginScreen(),
-    );
-  }
-}
-
-class LoginScreen extends StatelessWidget {
-  LoginScreen({super.key});
-  final TextEditingController _usernameController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text("Login"),
-      ),
-      body: Center(
-        child: Container(
-          constraints: BoxConstraints(maxWidth: 400, maxHeight: 400),
-          child: Card(
-           
-            child: Padding(padding: EdgeInsets.all(16.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Image.network(
-                    "https://fit.ba/content/763cbb87-718d-4eca-a991-343858daf424",
-                    width: 100,
-                    height: 100,),
-                    TextField(
-                      controller: _usernameController,
-                      decoration: InputDecoration(
-                        labelText: "Username",
-                      ),
-                    ),
-                    SizedBox(height: 16.0,),
-                    TextField(
-                      controller: _passwordController,
-                      obscureText: true,
-
-                      decoration: InputDecoration(
-                        labelText: "Password",
-
-                      ),
-                    ),
-                    SizedBox(height: 16.0,),
-                    ElevatedButton(
-                      child: Text("Login"),
-                      onPressed: () async {
-
-                        AuthProvider authProvider = Provider.of<AuthProvider>(context, listen: false);
-                        try {
-                          await authProvider.login(_usernameController.text, _passwordController.text);
-                          Navigator.push(context, MaterialPageRoute(builder: (context) => ProductList()));
-                        } on Exception catch (e) {
-                          alertBox(context, "Error", e.toString());
-                        }
-                        // Handle login logic here
-                        print("Login button pressed");
-                      },
-                    )
-              ],
-            ),),
-          ),
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProxyProvider<AuthProvider, CityProvider>(
+          create: (ctx) =>
+              CityProvider(BaseProvider(), ctx.read<AuthProvider>()),
+          update: (ctx, auth, prev) => prev!..updateAuth(auth),
         ),
-      ),
-    );
-  }
-}
-
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
-}
-
-class _MyHomePageState extends State<MyHomePage> {
-
-  @override
-  Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
-    return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Row(children: [
-          Container(
-            color: Theme.of(context).colorScheme.primary,
-            width: 100,
-            height: 100,
-            margin: const EdgeInsets.all(8.0),
+        ChangeNotifierProxyProvider<AuthProvider, CategoryProvider>(
+          create: (ctx) =>
+              CategoryProvider(BaseProvider(), ctx.read<AuthProvider>()),
+          update: (ctx, auth, prev) => prev!..updateAuth(auth),
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, VenueProvider>(
+          create: (ctx) =>
+              VenueProvider(BaseProvider(), ctx.read<AuthProvider>()),
+          update: (ctx, auth, prev) => prev!..updateAuth(auth),
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, EventProvider>(
+          create: (ctx) =>
+              EventProvider(BaseProvider(), ctx.read<AuthProvider>()),
+          update: (ctx, auth, prev) => prev!..updateAuth(auth),
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, TicketTypeProvider>(
+          create: (ctx) =>
+              TicketTypeProvider(BaseProvider(), ctx.read<AuthProvider>()),
+          update: (ctx, auth, prev) => prev!..updateAuth(auth),
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, OrderProvider>(
+          create: (ctx) =>
+              OrderProvider(BaseProvider(), ctx.read<AuthProvider>()),
+          update: (ctx, auth, prev) => prev!..updateAuth(auth),
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, TicketProvider>(
+          create: (ctx) =>
+              TicketProvider(BaseProvider(), ctx.read<AuthProvider>()),
+          update: (ctx, auth, prev) => prev!..updateAuth(auth),
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, ReviewProvider>(
+          create: (ctx) =>
+              ReviewProvider(BaseProvider(), ctx.read<AuthProvider>()),
+          update: (ctx, auth, prev) => prev!..updateAuth(auth),
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, ReservationProvider>(
+          create: (ctx) =>
+              ReservationProvider(BaseProvider(), ctx.read<AuthProvider>()),
+          update: (ctx, auth, prev) => prev!..updateAuth(auth),
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, UserProvider>(
+          create: (ctx) =>
+              UserProvider(BaseProvider(), ctx.read<AuthProvider>()),
+          update: (ctx, auth, prev) => prev!..updateAuth(auth),
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, DashboardProvider>(
+          create: (ctx) =>
+              DashboardProvider(BaseProvider(), ctx.read<AuthProvider>()),
+          update: (ctx, auth, prev) => prev!..updateAuth(auth),
+        ),
+      ],
+      child: MaterialApp(
+        title: 'Spotter Admin',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: AppColors.primary,
+            brightness: Brightness.light,
           ),
-          Container(
-            color: Theme.of(context).colorScheme.secondary,
-            width: 100,
-            height: 100,
-            
-
-            child: Column(
-              children: [
-                Container(
-                  color: Colors.green,
-                  width: 50,
-                  height: 50,
-                 
-                ),
-                Container(
-                  color: Colors.yellow,
-                  width: 50,
-                  height: 50,
-                  margin: const EdgeInsets.all(8.0),
-                ),
-              ],
+          useMaterial3: true,
+          appBarTheme: const AppBarTheme(
+            centerTitle: true,
+          ),
+          inputDecorationTheme: const InputDecorationTheme(
+            border: OutlineInputBorder(),
+            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          ),
+          elevatedButtonTheme: ElevatedButtonThemeData(
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
           ),
-        ],),
+          cardTheme: const CardThemeData(
+            elevation: 2,
+          ),
+        ),
+        home: Consumer<AuthProvider>(
+          builder: (context, auth, _) {
+            return auth.isLoggedIn
+                ? const DashboardScreen()
+                : const LoginScreen();
+          },
+        ),
       ),
     );
   }

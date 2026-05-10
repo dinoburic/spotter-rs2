@@ -28,11 +28,20 @@ class AuthProvider extends ChangeNotifier {
 
     try {
       final request = LoginRequest(username: username, password: password);
-      _currentUser = await _baseProvider.post<LoginResponse>(
+      final response = await _baseProvider.post<LoginResponse>(
         ApiConstants.login,
         data: request.toJson(),
         fromJson: (json) => LoginResponse.fromJson(json),
       );
+
+      if (response.role != 'Admin') {
+        _error = 'Access denied. Only administrators can access this panel.';
+        _isLoading = false;
+        notifyListeners();
+        return;
+      }
+
+      _currentUser = response;
       _error = null;
     } catch (e) {
       _error = e.toString();

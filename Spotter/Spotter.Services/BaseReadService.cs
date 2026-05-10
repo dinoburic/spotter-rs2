@@ -76,11 +76,13 @@ namespace Spotter.Services
 
         public virtual async Task<TResponse> GetByIdAsync(int id)
         {
-            var entity = await _dbContext.Set<TEntity>().FindAsync(id);
+            var query = _dbContext.Set<TEntity>().AsQueryable();
+            query = await IncludeRelatedEntitiesAsync(null, query);
+            
+            var entity = await query.FirstOrDefaultAsync(e => EF.Property<int>(e, "Id") == id);
+            
             if (entity == null)
-            {
                 throw new NotFoundException($"{typeof(TEntity).Name} with id {id} not found.");
-            }
 
             return _mapper.Map<TResponse>(entity);
         }

@@ -29,22 +29,36 @@ class SpotterDrawer extends StatelessWidget {
     return Drawer(
       child: Column(
         children: [
-          UserAccountsDrawerHeader(
-            decoration: const BoxDecoration(color: AppColors.primary),
-            accountName: Text(auth.username),
-            accountEmail: Text(auth.role),
-            currentAccountPicture: CircleAvatar(
-              backgroundColor: Colors.white,
-              child: Text(
-                auth.username.isNotEmpty ? auth.username[0].toUpperCase() : 'A',
+          Container(
+          width: double.infinity,
+          decoration: const BoxDecoration(color: AppColors.primary),
+          padding: const EdgeInsets.fromLTRB(16, 40, 16, 16),
+          child: Column(
+            children: [
+              Image.asset(
+                'assets/images/spotter_logo.jpg',
+                height: 72,
+                fit: BoxFit.contain,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                auth.username,
                 style: const TextStyle(
-                  fontSize: 24,
+                  color: Colors.white,
+                  fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.primary,
                 ),
               ),
-            ),
+              Text(
+                auth.role,
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 13,
+                ),
+              ),
+            ],
           ),
+        ),
           Expanded(
             child: ListView(
               padding: EdgeInsets.zero,

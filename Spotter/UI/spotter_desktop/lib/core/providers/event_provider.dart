@@ -79,13 +79,18 @@ class EventProvider extends ChangeNotifier {
     return result.items;
   }
 
-  Future<EventResponse> getById(int id) async {
+  Future<EventResponse?> getEventById(int id) async {
+  try {
     return await _baseProvider.get<EventResponse>(
       '${ApiConstants.events}/$id',
       token: _token,
       fromJson: (json) => EventResponse.fromJson(json),
     );
+  } catch (e) {
+    error = e.toString();
+    return null;
   }
+}
 
   Future<void> insert(EventInsertRequest request) async {
     await _baseProvider.post<EventResponse>(
@@ -111,6 +116,26 @@ class EventProvider extends ChangeNotifier {
       token: _token,
     );
   }
+
+  List<dynamic> ticketTypes = [];
+
+Future<void> loadTicketTypes(int eventId) async {
+  try {
+    final result = await _baseProvider.get<PageResult<TicketTypeResponse>>(
+      ApiConstants.ticketTypes,
+      token: _token,
+      queryParameters: {'eventId': eventId, 'pageSize': 100},
+      fromJson: (json) => PageResult.fromJson(
+        json,
+        (item) => TicketTypeResponse.fromJson(item),
+      ),
+    );
+    ticketTypes = result.items;
+    notifyListeners();
+  } catch (e) {
+    error = e.toString();
+  }
+}
 
   Future<void> activate(int id) async {
     await _baseProvider.postAction(

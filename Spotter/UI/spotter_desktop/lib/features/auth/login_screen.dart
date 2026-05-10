@@ -148,6 +148,15 @@ class _LoginScreenState extends State<LoginScreen> {
                             : const Text('Login'),
                       ),
                     ),
+                    if (auth.error != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          auth.error!,
+                          style: const TextStyle(color: Colors.red, fontSize: 13),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
                   ],
                 ),
               ),

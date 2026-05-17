@@ -13,6 +13,10 @@ namespace Spotter.Model.Responses
         public string CategoryColorHex { get; set; } = string.Empty;
         public int VenueId { get; set; }
         public string VenueName { get; set; } = string.Empty;
+        public string? VenueAddress { get; set; }
+        public decimal? VenueLatitude { get; set; }
+        public decimal? VenueLongitude { get; set; }
+        public bool VenueGeocodingPending { get; set; }
         public int CityId { get; set; }
         public string CityName { get; set; } = string.Empty;
         public int OrganizerId { get; set; }

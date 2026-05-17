@@ -89,7 +89,7 @@ class EventProvider extends ChangeNotifier {
           .toList();
       notifyListeners();
     } catch (e) {
-      error = e.toString().replaceAll('Exception: ', '');
+      error = e.toString();
       notifyListeners();
     }
   }

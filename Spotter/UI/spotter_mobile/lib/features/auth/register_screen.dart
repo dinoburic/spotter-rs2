@@ -41,7 +41,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void initState() {
     super.initState();
-    _loadCities();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadCities();
+    });
   }
 
   @override

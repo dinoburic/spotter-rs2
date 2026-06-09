@@ -30,7 +30,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _loadEvent();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadEvent();
+    });
   }
 
   Future<void> _loadEvent() async {

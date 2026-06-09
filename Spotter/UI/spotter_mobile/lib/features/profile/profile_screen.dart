@@ -19,11 +19,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    final auth = context.read<AuthProvider>();
-    final profileProvider = context.read<ProfileProvider>();
-    profileProvider.loadProfile(auth.userId);
-    profileProvider.loadBadges(auth.userId);
-    profileProvider.loadPointsBalance();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final auth = context.read<AuthProvider>();
+      final profileProvider = context.read<ProfileProvider>();
+      profileProvider.loadProfile(auth.userId);
+      profileProvider.loadBadges(auth.userId);
+      profileProvider.loadPointsBalance();
+    });
   }
 
   Future<void> _logout() async {
@@ -190,6 +192,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
                           ),
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
                         ),
                       ],
                     ),

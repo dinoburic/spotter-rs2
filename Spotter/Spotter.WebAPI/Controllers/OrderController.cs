@@ -53,5 +53,12 @@ namespace Spotter.WebAPI.Controllers
             var result = await _orderService.RefundAsync(id);
             return Ok(result);
         }
+
+        [HttpPost("{id}/cancel")]
+        public async Task<IActionResult> Cancel(int id)
+        {
+            await _orderService.CancelAsync(id);
+            return NoContent();
+        }
     }
 }

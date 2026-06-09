@@ -23,7 +23,9 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _loadTicket();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadTicket();
+    });
   }
 
   Future<void> _loadTicket() async {
@@ -89,9 +91,13 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
                               color: AppColors.textSecondary,
                             ),
                             const SizedBox(width: 4),
-                            Text(
-                              '${_ticket!.venueName}${_ticket!.cityName != null ? ', ${_ticket!.cityName}' : ''}',
-                              style: TextStyle(color: AppColors.textSecondary),
+                            Flexible(
+                              child: Text(
+                                '${_ticket!.venueName}${_ticket!.cityName != null ? ', ${_ticket!.cityName}' : ''}',
+                                style: TextStyle(color: AppColors.textSecondary),
+                                textAlign: TextAlign.center,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
                           ],
                         ),
@@ -138,14 +144,10 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
                     const SizedBox(height: 24),
                     if (_ticket != null) ...[
                       _buildInfoRow('Ticket Type', _ticket!.ticketTypeName),
-                      const SizedBox(height: 8),
                       _buildInfoRow('Type', _ticket!.typeName),
-                      const SizedBox(height: 8),
-                      _buildInfoRow(
-                        'Issued',
-                        DateFormat('MMM d, yyyy · HH:mm')
-                            .format(_ticket!.issuedAt),
-                      ),
+                      _buildInfoRow('Issued', DateFormat('MMM d, yyyy · HH:mm').format(_ticket!.issuedAt)),
+                      if (_ticket!.usedAt != null)
+                        _buildInfoRow('Used', DateFormat('MMM d, yyyy · HH:mm').format(_ticket!.usedAt!)),
                       const SizedBox(height: 16),
                       _buildStatusChip(_ticket!.status, _ticket!.statusName),
                     ],
@@ -180,18 +182,24 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
   }
 
   Widget _buildInfoRow(String label, String value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: TextStyle(color: AppColors.textSecondary),
-        ),
-        Text(
-          value,
-          style: const TextStyle(fontWeight: FontWeight.w500),
-        ),
-      ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(color: AppColors.textSecondary),
+          ),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

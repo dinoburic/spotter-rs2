@@ -184,22 +184,6 @@ namespace Spotter.Services
                     };
 
                     _dbContext.OrderItems.Add(orderItem);
-                    await _dbContext.SaveChangesAsync();
-
-                    for (int i = 0; i < item.Quantity; i++)
-                    {
-                        var ticket = new Ticket
-                        {
-                            UserId = userId,
-                            OrderItemId = orderItem.Id,
-                            QrCodePayload = GenerateQrPayload(order.Id, orderItem.Id, item.TicketTypeId),
-                            Status = TicketStatus.Active,
-                            IssuedAt = DateTime.UtcNow
-                        };
-                        _dbContext.Tickets.Add(ticket);
-                    }
-
-                    ticketType.SoldQuantity += item.Quantity;
                 }
 
                 await _dbContext.SaveChangesAsync();
@@ -210,15 +194,6 @@ namespace Spotter.Services
                     .Include(o => o.Event)
                     .Include(o => o.OrderItems).ThenInclude(oi => oi.TicketType)
                     .FirstAsync(o => o.Id == order.Id);
-
-                var totalTickets = request.Items.Sum(i => i.Quantity);
-                await _notificationService.CreateAsync(
-                    userId: userId,
-                    title: "Order Confirmed",
-                    body: $"Your order for {eventEntity.Title} has been confirmed. {totalTickets} ticket(s) issued.",
-                    type: NotificationType.General,
-                    referenceId: order.Id.ToString()
-                );
 
                 _logger.LogInformation("Order {OrderId} created successfully for user {UserId}", order.Id, userId);
                 return _mapper.Map<OrderResponse>(createdOrder);
@@ -245,8 +220,37 @@ namespace Spotter.Services
                 throw new NotFoundException("Order not found.");
             }
 
+            if (order.Status == OrderStatus.Paid)
+            {
+                _logger.LogInformation("Order {OrderId} already paid, skipping", id);
+                return _mapper.Map<OrderResponse>(order);
+            }
+
             _orderStateMachine.Transition(order, OrderStatus.Paid);
+
+            var ticketCount = 0;
+            foreach (var orderItem in order.OrderItems)
+            {
+                orderItem.TicketType.SoldQuantity += orderItem.Quantity;
+
+                for (int i = 0; i < orderItem.Quantity; i++)
+                {
+                    var ticket = new Ticket
+                    {
+                        UserId = order.UserId,
+                        OrderItemId = orderItem.Id,
+                        QrCodePayload = GenerateQrPayload(order.Id, orderItem.Id, orderItem.TicketTypeId),
+                        Status = TicketStatus.Active,
+                        IssuedAt = DateTime.UtcNow
+                    };
+                    _dbContext.Tickets.Add(ticket);
+                    ticketCount++;
+                }
+            }
+
             await _dbContext.SaveChangesAsync();
+
+            _logger.LogInformation("Order {OrderId} paid, {Count} tickets issued", order.Id, ticketCount);
 
             var pointsToEarn = Math.Max(1, (int)Math.Floor(order.TotalAmount / 10));
             await _spotterPointsService.EarnAsync(
@@ -259,7 +263,14 @@ namespace Spotter.Services
 
             await _badgeService.EvaluateAndAwardAsync(order.UserId);
 
-            _logger.LogInformation("Order {OrderId} marked as paid successfully", id);
+            await _notificationService.CreateAsync(
+                userId: order.UserId,
+                title: "Order Confirmed",
+                body: $"Your order for {order.Event.Title} has been confirmed. {ticketCount} ticket(s) issued.",
+                type: NotificationType.General,
+                referenceId: order.Id.ToString()
+            );
+
             return _mapper.Map<OrderResponse>(order);
         }
 
@@ -310,6 +321,29 @@ namespace Spotter.Services
 
             _logger.LogInformation("Order {OrderId} refunded successfully", id);
             return _mapper.Map<OrderResponse>(order);
+        }
+
+        public async Task CancelAsync(int id)
+        {
+            _logger.LogInformation("Cancelling order {OrderId}", id);
+            var order = await _dbContext.Orders.FirstOrDefaultAsync(o => o.Id == id);
+
+            if (order == null)
+            {
+                _logger.LogWarning("Order {OrderId} not found", id);
+                throw new NotFoundException("Order not found.");
+            }
+
+            if (order.Status == OrderStatus.Cancelled)
+            {
+                _logger.LogInformation("Order {OrderId} already cancelled, skipping", id);
+                return;
+            }
+
+            _orderStateMachine.Transition(order, OrderStatus.Cancelled);
+            await _dbContext.SaveChangesAsync();
+
+            _logger.LogInformation("Order {OrderId} cancelled successfully", id);
         }
 
         private static string GenerateQrPayload(int orderId, int orderItemId, int ticketTypeId)

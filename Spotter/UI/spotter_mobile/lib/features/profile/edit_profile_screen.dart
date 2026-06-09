@@ -28,8 +28,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void initState() {
     super.initState();
     final profileProvider = context.read<ProfileProvider>();
-    profileProvider.loadCities();
-
     final profile = profileProvider.profile;
     if (profile != null) {
       _firstNameController.text = profile.firstName;
@@ -38,6 +36,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       _phoneController.text = profile.phoneNumber ?? '';
       _selectedCityId = profile.cityId;
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      profileProvider.loadCities();
+    });
   }
 
   @override

@@ -94,6 +94,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> tryAutoLogin() async {
+  try {
     final prefs = await SharedPreferences.getInstance();
     final accessToken = prefs.getString('accessToken');
     final refreshToken = prefs.getString('refreshToken');
@@ -116,7 +117,8 @@ class AuthProvider extends ChangeNotifier {
       _baseProvider.setToken(accessToken);
       notifyListeners();
     }
-  }
+  } catch (_) {}
+}
 
   Future<void> _saveToStorage(LoginResponse response) async {
     final prefs = await SharedPreferences.getInstance();

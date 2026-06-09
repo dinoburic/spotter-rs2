@@ -17,7 +17,9 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   @override
   void initState() {
     super.initState();
-    context.read<FavoriteProvider>().loadFavorites();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<FavoriteProvider>().loadFavorites();
+    });
   }
 
   Future<void> _removeFavorite(int eventId) async {

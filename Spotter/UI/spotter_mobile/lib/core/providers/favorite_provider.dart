@@ -20,7 +20,7 @@ class FavoriteProvider extends ChangeNotifier {
 
     try {
       final result = await _baseProvider.get<PageResult<FavoriteResponse>>(
-        '${ApiConstants.favorites}/my',
+        ApiConstants.favorites,
         queryParameters: {'page': 1, 'pageSize': 100},
         fromJson: (json) => PageResult.fromJson(
           json,
@@ -48,10 +48,7 @@ class FavoriteProvider extends ChangeNotifier {
         favoriteEventIds.remove(eventId);
         favorites.removeWhere((f) => f.eventId == eventId);
       } else {
-        await _baseProvider.postAction(
-          ApiConstants.favorites,
-          data: {'eventId': eventId},
-        );
+        await _baseProvider.postAction('${ApiConstants.favorites}/$eventId');
         favoriteEventIds.add(eventId);
         await loadFavorites();
       }

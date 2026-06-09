@@ -37,7 +37,7 @@ namespace Spotter.WebAPI.Controllers
         }
 
         [HttpPost]
-        [Authorize(Roles = Roles.Organizer)]
+        [Authorize(Roles = $"{Roles.Organizer},{Roles.Admin}")]
         public async Task<ActionResult<TicketTypeResponse>> Insert([FromBody] TicketTypeInsertRequest request)
         {
             var result = await _ticketTypeService.InsertAsync(request);
@@ -45,7 +45,7 @@ namespace Spotter.WebAPI.Controllers
         }
 
         [HttpPut("{id}")]
-        [Authorize(Roles = Roles.Organizer)]
+        [Authorize(Roles = $"{Roles.Organizer},{Roles.Admin}")]
         public async Task<ActionResult<TicketTypeResponse>> Update(int id, [FromBody] TicketTypeUpdateRequest request)
         {
             var result = await _ticketTypeService.UpdateAsync(id, request);
@@ -53,7 +53,7 @@ namespace Spotter.WebAPI.Controllers
         }
 
         [HttpDelete("{id}")]
-        [Authorize(Roles = Roles.Organizer)]
+        [Authorize(Roles = $"{Roles.Organizer},{Roles.Admin}")]
         public async Task<IActionResult> Delete(int id)
         {
             await _ticketTypeService.DeleteAsync(id);

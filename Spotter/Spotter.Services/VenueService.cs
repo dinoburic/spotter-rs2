@@ -50,6 +50,7 @@ namespace Spotter.Services
 
         public override async Task<VenueResponse> InsertAsync(VenueInsertRequest request)
         {
+            await _insertValidator.ValidateAndThrowAsync(request);
             _logger.LogInformation("Creating venue {VenueName} in city {CityId}", request.Name, request.CityId);
 
             var city = await _dbContext.Cities.FirstOrDefaultAsync(c => c.Id == request.CityId);

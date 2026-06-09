@@ -23,7 +23,9 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    context.read<TicketProvider>().loadTickets();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<TicketProvider>().loadTickets();
+    });
   }
 
   @override
@@ -172,11 +174,14 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
                     color: AppColors.textSecondary,
                   ),
                   const SizedBox(width: 4),
-                  Text(
-                    'Issued: ${DateFormat('MMM d, yyyy').format(ticket.issuedAt)}',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 12,
+                  Flexible(
+                    child: Text(
+                      'Issued: ${DateFormat('MMM d, yyyy').format(ticket.issuedAt)}',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],

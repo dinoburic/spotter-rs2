@@ -24,12 +24,13 @@ class _EventListScreenState extends State<EventListScreen> {
   @override
   void initState() {
     super.initState();
-    final eventProvider = context.read<EventProvider>();
-    eventProvider.loadEvents(refresh: true);
-    eventProvider.loadCategories();
-    context.read<FavoriteProvider>().loadFavorites();
-
     _scrollController.addListener(_onScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final eventProvider = context.read<EventProvider>();
+      eventProvider.loadEvents(refresh: true);
+      eventProvider.loadCategories();
+      context.read<FavoriteProvider>().loadFavorites();
+    });
   }
 
   @override

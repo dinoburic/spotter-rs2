@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/providers/favorite_provider.dart';
 import '../../core/providers/notification_provider.dart';
 import '../map/map_screen.dart';
 import '../events/event_list_screen.dart';
@@ -30,9 +31,12 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    final notificationProvider = context.read<NotificationProvider>();
-    notificationProvider.loadUnreadCount();
-    notificationProvider.startPolling();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<FavoriteProvider>().loadFavorites();
+      final notificationProvider = context.read<NotificationProvider>();
+      notificationProvider.loadUnreadCount();
+      notificationProvider.startPolling();
+    });
   }
 
   @override

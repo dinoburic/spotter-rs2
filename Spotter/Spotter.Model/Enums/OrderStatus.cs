@@ -4,6 +4,7 @@ namespace Spotter.Model.Enums
     {
         Pending = 0,
         Paid = 1,
-        Refunded = 2
+        Refunded = 2,
+        Cancelled = 3
     }
 }

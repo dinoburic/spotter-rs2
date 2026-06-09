@@ -17,7 +17,9 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
   @override
   void initState() {
     super.initState();
-    context.read<OrderProvider>().loadOrders();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<OrderProvider>().loadOrders();
+    });
   }
 
   Color _getStatusColor(int status) {

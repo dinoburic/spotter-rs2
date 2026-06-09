@@ -4,9 +4,10 @@ import '../../core/constants/app_colors.dart';
 import '../../core/providers/event_provider.dart';
 import '../../core/providers/order_provider.dart';
 import '../../core/providers/profile_provider.dart';
+import '../../core/providers/payment_provider.dart';
 import '../../core/models/event_response.dart';
 import '../../core/models/order_insert_request.dart';
-import '../tickets/my_tickets_screen.dart';
+import '../home/home_screen.dart';
 
 class CheckoutScreen extends StatefulWidget {
   final EventResponse event;
@@ -25,7 +26,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   @override
   void initState() {
     super.initState();
-    _loadPointsBalance();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadPointsBalance();
+    });
   }
 
   Future<void> _loadPointsBalance() async {
@@ -61,13 +64,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     return _quantities.values.fold(0, (sum, qty) => sum + qty);
   }
 
-  Future<void> _confirmOrder() async {
+  Future<void> _processOrder() async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Confirm Order'),
         content: Text(
-          'You are about to purchase $_totalItems ticket(s) for ${_total.toStringAsFixed(2)} BAM. Continue?',
+          'Total: ${_total.toStringAsFixed(2)} BAM\n\nProceed to payment?',
         ),
         actions: [
           TextButton(
@@ -76,13 +79,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Confirm'),
+            child: const Text('Pay Now'),
           ),
         ],
       ),
     );
 
-    if (confirmed != true) return;
+    if (confirmed != true || !mounted) return;
 
     final items = _quantities.entries
         .where((e) => e.value > 0)
@@ -99,24 +102,41 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
 
     final orderProvider = context.read<OrderProvider>();
-    final order = await orderProvider.createOrder(request);
+    final paymentProvider = context.read<PaymentProvider>();
 
-    if (mounted && order != null) {
+    final order = await orderProvider.createOrder(request);
+    if (order == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(orderProvider.error ?? 'Failed to create order'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+      return;
+    }
+
+    final paymentSuccess = await paymentProvider.processPayment(order.id);
+
+    if (!mounted) return;
+
+    if (paymentSuccess) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+        (route) => false,
+      );
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Order placed successfully!'),
+          content: Text('Payment successful! Your tickets have been issued.'),
           backgroundColor: AppColors.success,
         ),
       );
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const MyTicketsScreen(standalone: true)),
-        (route) => route.isFirst,
-      );
-    } else if (mounted && orderProvider.error != null) {
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(orderProvider.error!),
+          content: Text(paymentProvider.error ?? 'Payment failed'),
           backgroundColor: AppColors.error,
         ),
       );
@@ -150,6 +170,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                               .textTheme
                               .titleMedium
                               ?.copyWith(fontWeight: FontWeight.bold),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 4),
                         Text(
@@ -329,23 +351,28 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _totalItems > 0 && !orderProvider.isLoading
-                          ? _confirmOrder
-                          : null,
-                      child: orderProvider.isLoading
-                          ? const SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Text('Confirm Order'),
-                    ),
+                  Consumer<PaymentProvider>(
+                    builder: (context, paymentProvider, child) {
+                      final isProcessing = orderProvider.isLoading || paymentProvider.isLoading;
+                      return SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _totalItems > 0 && !isProcessing
+                              ? _processOrder
+                              : null,
+                          child: isProcessing
+                              ? const SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Text('Pay Now'),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),

@@ -16,7 +16,9 @@ class _MyReservationsScreenState extends State<MyReservationsScreen> {
   @override
   void initState() {
     super.initState();
-    context.read<ReservationProvider>().loadReservations();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ReservationProvider>().loadReservations();
+    });
   }
 
   Future<void> _cancelReservation(int id) async {
@@ -133,6 +135,8 @@ class _MyReservationsScreenState extends State<MyReservationsScreen> {
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
                     ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 Container(

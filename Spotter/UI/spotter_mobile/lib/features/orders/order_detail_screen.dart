@@ -21,7 +21,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _loadOrder();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadOrder();
+    });
   }
 
   Future<void> _loadOrder() async {
@@ -89,6 +91,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                                 .textTheme
                                 .titleMedium
                                 ?.copyWith(fontWeight: FontWeight.bold),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         Container(

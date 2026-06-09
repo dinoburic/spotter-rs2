@@ -24,9 +24,11 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void initState() {
     super.initState();
-    final eventProvider = context.read<EventProvider>();
-    eventProvider.loadMapEvents();
-    eventProvider.loadCategories();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final eventProvider = context.read<EventProvider>();
+      eventProvider.loadMapEvents();
+      eventProvider.loadCategories();
+    });
   }
 
   Future<void> _centerOnUser() async {
@@ -100,9 +102,12 @@ class _MapScreenState extends State<MapScreen> {
                 children: [
                   const Icon(Icons.location_on_outlined, size: 16),
                   const SizedBox(width: 4),
-                  Text(
-                    '${event.venueName}${event.cityName != null ? ', ${event.cityName}' : ''}',
-                    style: TextStyle(color: AppColors.textSecondary),
+                  Expanded(
+                    child: Text(
+                      '${event.venueName}${event.cityName != null ? ', ${event.cityName}' : ''}',
+                      style: TextStyle(color: AppColors.textSecondary),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ],
               ),

@@ -7,9 +7,10 @@ namespace Spotter.Services.StateMachines
     {
         protected override Dictionary<OrderStatus, OrderStatus[]> AllowedTransitions => new()
         {
-            { OrderStatus.Pending, new[] { OrderStatus.Paid, OrderStatus.Refunded } },
+            { OrderStatus.Pending, new[] { OrderStatus.Paid, OrderStatus.Cancelled } },
             { OrderStatus.Paid, new[] { OrderStatus.Refunded } },
-            { OrderStatus.Refunded, Array.Empty<OrderStatus>() }
+            { OrderStatus.Refunded, Array.Empty<OrderStatus>() },
+            { OrderStatus.Cancelled, Array.Empty<OrderStatus>() }
         };
 
         protected override OrderStatus GetCurrentStatus(Order entity)

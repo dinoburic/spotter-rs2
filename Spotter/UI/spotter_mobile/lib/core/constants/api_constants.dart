@@ -24,4 +24,5 @@ class ApiConstants {
   static const String waitlist = '/api/waitlist';
   static const String recommendations = '/api/recommendations';
   static const String users = '/api/users';
+  static const String payments = '/api/payments';
 }

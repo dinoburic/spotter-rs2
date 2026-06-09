@@ -82,7 +82,12 @@ TypeAdapterConfig<Review, ReviewResponse>.NewConfig()
 
 TypeAdapterConfig<Favorite, FavoriteResponse>.NewConfig()
     .Map(dest => dest.EventTitle, src => src.Event != null ? src.Event.Title : string.Empty)
-    .Map(dest => dest.EventCoverImageUrl, src => src.Event != null ? src.Event.CoverImageUrl : null);
+    .Map(dest => dest.EventCoverImageUrl, src => src.Event != null ? src.Event.CoverImageUrl : null)
+    .Map(dest => dest.CategoryName, src => src.Event != null && src.Event.Category != null ? src.Event.Category.Name : string.Empty)
+    .Map(dest => dest.CategoryColorHex, src => src.Event != null && src.Event.Category != null ? src.Event.Category.ColorHex : "#7C3AED")
+    .Map(dest => dest.VenueName, src => src.Event != null && src.Event.Venue != null ? src.Event.Venue.Name : string.Empty)
+    .Map(dest => dest.CityName, src => src.Event != null && src.Event.Venue != null && src.Event.Venue.City != null ? src.Event.Venue.City.Name : null)
+    .Map(dest => dest.EventStartsAt, src => src.Event != null ? src.Event.StartsAt : default);
 
 TypeAdapterConfig<Friendship, FriendshipResponse>.NewConfig()
     .Map(dest => dest.RequesterName, src => src.Requester != null ? src.Requester.FirstName + " " + src.Requester.LastName : string.Empty)
@@ -140,6 +145,7 @@ builder.Services.AddScoped<IReservationService, ReservationService>();
 builder.Services.AddScoped<ISpotterPointsService, SpotterPointsService>();
 builder.Services.AddScoped<IBadgeService, BadgeService>();
 builder.Services.AddScoped<IWaitlistService, WaitlistService>();
+builder.Services.AddScoped<IStripeService, StripeService>();
 builder.Services.AddSingleton<IRabbitMqPublisher, RabbitMqPublisher>();
 
 builder.Services.AddScoped<EventStateMachine>();
@@ -272,6 +278,15 @@ builder.Services.AddSwaggerGen(
     });
 
 var app = builder.Build();
+
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/api/payments/webhook"))
+    {
+        context.Request.EnableBuffering();
+    }
+    await next();
+});
 
 app.MapOpenApi();
 app.MapScalarApiReference();

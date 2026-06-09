@@ -32,7 +32,8 @@ namespace Spotter.Services
             var userId = _currentUserService.GetUserId();
 
             var query = _dbContext.Favorites
-                .Include(f => f.Event)
+                .Include(f => f.Event).ThenInclude(e => e.Category)
+                .Include(f => f.Event).ThenInclude(e => e.Venue).ThenInclude(v => v.City)
                 .Where(f => f.UserId == userId)
                 .AsQueryable();
 
@@ -91,7 +92,8 @@ namespace Spotter.Services
             await _dbContext.SaveChangesAsync();
 
             var createdFavorite = await _dbContext.Favorites
-                .Include(f => f.Event)
+                .Include(f => f.Event).ThenInclude(e => e.Category)
+                .Include(f => f.Event).ThenInclude(e => e.Venue).ThenInclude(v => v.City)
                 .FirstAsync(f => f.Id == favorite.Id);
 
             _logger.LogInformation("Favorite {FavoriteId} added successfully", favorite.Id);

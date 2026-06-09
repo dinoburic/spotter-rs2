@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_stripe/flutter_stripe.dart';
 import 'core/constants/app_colors.dart';
 import 'core/providers/auth_provider.dart';
 import 'core/providers/event_provider.dart';
@@ -10,11 +11,20 @@ import 'core/providers/favorite_provider.dart';
 import 'core/providers/notification_provider.dart';
 import 'core/providers/profile_provider.dart';
 import 'core/providers/review_provider.dart';
+import 'core/providers/payment_provider.dart';
 import 'features/auth/login_screen.dart';
 import 'features/home/home_screen.dart';
 
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  const stripeKey = String.fromEnvironment('STRIPE_PUBLISHABLE_KEY');
+  if (stripeKey.isNotEmpty) {
+    Stripe.publishableKey = stripeKey;
+    Stripe.instance.applySettings();
+  }
+
   final authProvider = AuthProvider();
   await authProvider.tryAutoLogin();
 
@@ -45,6 +55,9 @@ void main() async {
         ),
         ChangeNotifierProvider(
           create: (_) => ReviewProvider(authProvider.baseProvider),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => PaymentProvider(authProvider.baseProvider),
         ),
       ],
       child: const SpotterApp(),

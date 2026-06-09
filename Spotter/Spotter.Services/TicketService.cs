@@ -38,10 +38,11 @@ namespace Spotter.Services
         public async Task<PageResult<TicketResponse>> GetAllAsync(TicketSearch? search = null)
         {
             var query = _dbContext.Tickets
-                .Include(t => t.User)
-                .Include(t => t.OrderItem).ThenInclude(oi => oi.TicketType)
-                .Include(t => t.OrderItem).ThenInclude(oi => oi.Order).ThenInclude(o => o.Event)
-                .AsQueryable();
+                                    .Include(t => t.User)
+                                    .Include(t => t.OrderItem).ThenInclude(oi => oi.TicketType)
+                                    .Include(t => t.OrderItem).ThenInclude(oi => oi.Order).ThenInclude(o => o.Event)
+                                    .Where(t => t.OrderItem.Order.Status == OrderStatus.Paid)  // DODAJ OVO
+                                    .AsQueryable();
 
             if (!_currentUserService.IsAdmin())
             {

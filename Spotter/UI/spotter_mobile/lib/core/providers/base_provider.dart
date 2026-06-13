@@ -1,9 +1,15 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/api_constants.dart';
+import '../constants/navigator_key.dart';
+import '../../features/auth/login_screen.dart';
 
 class BaseProvider {
   late final Dio _dio;
   String? _token;
+  Future<void> Function()? onUnauthorized;
+  bool _isRedirecting = false;
 
   BaseProvider() {
     _dio = Dio(BaseOptions(
@@ -105,9 +111,34 @@ class BaseProvider {
     }
   }
 
+  Future<void> _handleUnauthorized(String? requestPath) async {
+    if (_isRedirecting) return;
+    if (requestPath == ApiConstants.login ||
+        requestPath == ApiConstants.register) return;
+
+    _isRedirecting = true;
+
+    await onUnauthorized?.call();
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('accessToken');
+    await prefs.remove('refreshToken');
+    await prefs.remove('userId');
+    await prefs.remove('username');
+    await prefs.remove('role');
+
+    navigatorKey.currentState?.pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
+    );
+
+    _isRedirecting = false;
+  }
+
   Exception _handleError(DioException e) {
     if (e.response?.statusCode == 401) {
-      return Exception('Unauthorized');
+      _handleUnauthorized(e.requestOptions.path);
+      return Exception('Session expired');
     }
     if (e.response?.data != null) {
       final data = e.response!.data;

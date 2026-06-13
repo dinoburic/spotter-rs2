@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'core/constants/app_colors.dart';
+import 'core/constants/navigator_key.dart';
 import 'core/providers/auth_provider.dart';
 import 'core/providers/event_provider.dart';
 import 'core/providers/ticket_provider.dart';
@@ -73,6 +74,7 @@ class SpotterApp extends StatelessWidget {
     final auth = context.watch<AuthProvider>();
 
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: 'Spotter',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(

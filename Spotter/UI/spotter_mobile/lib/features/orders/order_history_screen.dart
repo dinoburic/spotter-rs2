@@ -146,7 +146,7 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                             .format(order.createdAt),
                         style: TextStyle(
                           color: AppColors.textSecondary,
-                          fontSize: 12,
+                          fontSize: 10,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -154,7 +154,7 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                         '${order.items.length} item(s)',
                         style: TextStyle(
                           color: AppColors.textSecondary,
-                          fontSize: 12,
+                          fontSize: 10,
                         ),
                       ),
                     ],
@@ -163,7 +163,7 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                     '${order.totalAmount.toStringAsFixed(2)} BAM',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 18,
+                      fontSize: 13,
                     ),
                   ),
                 ],

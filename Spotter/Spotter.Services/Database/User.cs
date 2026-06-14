@@ -21,5 +21,6 @@ namespace Spotter.Services.Database
         public DateTime? DeletedAt { get; set; }
         public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
         public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
+        public ICollection<UserInterest> UserInterests { get; set; } = new List<UserInterest>();
     }
 }

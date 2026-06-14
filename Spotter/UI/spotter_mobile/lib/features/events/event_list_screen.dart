@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/providers/event_provider.dart';
 import '../../core/providers/favorite_provider.dart';
+import '../../core/providers/recommendation_provider.dart';
+import '../../core/models/recommendation_response.dart';
 import 'event_card.dart';
 import 'event_detail_screen.dart';
 
@@ -30,6 +33,7 @@ class _EventListScreenState extends State<EventListScreen> {
       eventProvider.loadEvents(refresh: true);
       eventProvider.loadCategories();
       context.read<FavoriteProvider>().loadFavorites();
+      context.read<RecommendationProvider>().loadRecommendations();
     });
   }
 
@@ -108,6 +112,7 @@ class _EventListScreenState extends State<EventListScreen> {
           child: RefreshIndicator(
             onRefresh: () async {
               await eventProvider.loadEvents(refresh: true);
+              context.read<RecommendationProvider>().loadRecommendations();
             },
             child: eventProvider.items.isEmpty && !eventProvider.isLoading
                 ? Center(
@@ -130,35 +135,75 @@ class _EventListScreenState extends State<EventListScreen> {
                       ],
                     ),
                   )
-                : ListView.builder(
+                : CustomScrollView(
                     controller: _scrollController,
-                    padding: const EdgeInsets.only(bottom: 16),
-                    itemCount: eventProvider.items.length +
-                        (eventProvider.isLoading ? 1 : 0),
-                    itemBuilder: (context, index) {
-                      if (index >= eventProvider.items.length) {
-                        return const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(16),
-                            child: CircularProgressIndicator(),
-                          ),
-                        );
-                      }
-
-                      final event = eventProvider.items[index];
-                      return EventCard(
-                        event: event,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  EventDetailScreen(eventId: event.id),
+                    slivers: [
+                      Consumer<RecommendationProvider>(
+                        builder: (context, recProvider, _) {
+                          if (recProvider.recommendations.isEmpty) {
+                            return const SliverToBoxAdapter(child: SizedBox.shrink());
+                          }
+                          return SliverToBoxAdapter(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                                  child: Text(
+                                    'Recommended for you',
+                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(
+                                  height: 220,
+                                  child: ListView.builder(
+                                    scrollDirection: Axis.horizontal,
+                                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                                    itemCount: recProvider.recommendations.length,
+                                    itemBuilder: (context, index) {
+                                      final rec = recProvider.recommendations[index];
+                                      return _RecommendationCard(recommendation: rec);
+                                    },
+                                  ),
+                                ),
+                                const Divider(height: 24),
+                              ],
                             ),
                           );
                         },
-                      );
-                    },
+                      ),
+                      SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            if (index >= eventProvider.items.length) {
+                              return const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(16),
+                                  child: CircularProgressIndicator(),
+                                ),
+                              );
+                            }
+                            final event = eventProvider.items[index];
+                            return EventCard(
+                              event: event,
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => EventDetailScreen(eventId: event.id),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                          childCount: eventProvider.items.length +
+                              (eventProvider.isLoading ? 1 : 0),
+                        ),
+                      ),
+                      const SliverPadding(padding: EdgeInsets.only(bottom: 16)),
+                    ],
                   ),
           ),
         ),
@@ -190,6 +235,79 @@ class _EventListScreenState extends State<EventListScreen> {
         side: BorderSide(
           color: color ?? AppColors.primary,
           width: isSelected ? 0 : 1,
+        ),
+      ),
+    );
+  }
+}
+
+class _RecommendationCard extends StatelessWidget {
+  final RecommendationResponse recommendation;
+
+  const _RecommendationCard({required this.recommendation});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => EventDetailScreen(eventId: recommendation.eventId),
+        ),
+      ),
+      child: Container(
+        width: 180,
+        margin: const EdgeInsets.symmetric(horizontal: 4),
+        child: Card(
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (recommendation.coverImageUrl != null)
+                CachedNetworkImage(
+                  imageUrl: recommendation.coverImageUrl!,
+                  height: 110,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorWidget: (_, __, ___) => Container(
+                    height: 110,
+                    color: AppColors.fromHex(recommendation.categoryColorHex)
+                        .withOpacity(0.3),
+                    child: const Icon(Icons.event),
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.all(8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      recommendation.title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      recommendation.explanation,
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: AppColors.fromHex(recommendation.categoryColorHex),
+                        fontStyle: FontStyle.italic,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

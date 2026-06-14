@@ -29,13 +29,26 @@ namespace Spotter.Services
                     var recommendationService = scope.ServiceProvider.GetRequiredService<IRecommendationService>();
                     await recommendationService.TrainModelAsync();
                 }
-                catch (Exception ex)
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
                 {
                     _logger.LogError(ex, "Error during recommendation model training");
                 }
 
-                await Task.Delay(TimeSpan.FromHours(24), stoppingToken);
+                try
+                {
+                    await Task.Delay(TimeSpan.FromHours(24), stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
             }
+
+            _logger.LogInformation("RecommendationTrainingService stopping");
         }
     }
 }

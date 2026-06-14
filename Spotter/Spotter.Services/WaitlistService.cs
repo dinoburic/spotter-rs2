@@ -143,8 +143,8 @@ namespace Spotter.Services
             await _notificationService.CreateAsync(
                 userId,
                 "Added to Waitlist",
-                $"You are #{position} on the waitlist for {ticketType.Name} at {eventEntity.Title}.",
-                NotificationType.General,
+                $"You are #{position} on the waitlist for {ticketType.Name} at {eventEntity.Title}. We will notify you when a spot becomes available.",
+                NotificationType.WaitlistUpdate,
                 entry.Id.ToString()
             );
 

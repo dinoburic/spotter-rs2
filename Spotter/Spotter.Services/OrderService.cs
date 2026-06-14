@@ -195,6 +195,14 @@ namespace Spotter.Services
                     .Include(o => o.OrderItems).ThenInclude(oi => oi.TicketType)
                     .FirstAsync(o => o.Id == order.Id);
 
+                await _notificationService.CreateAsync(
+                    userId: userId,
+                    title: "Order Created",
+                    body: $"Your order for {eventEntity.Title} has been created. Complete payment to receive your tickets.",
+                    type: NotificationType.OrderCreated,
+                    referenceId: order.Id.ToString()
+                );
+
                 _logger.LogInformation("Order {OrderId} created successfully for user {UserId}", order.Id, userId);
                 return _mapper.Map<OrderResponse>(createdOrder);
             }
@@ -265,9 +273,9 @@ namespace Spotter.Services
 
             await _notificationService.CreateAsync(
                 userId: order.UserId,
-                title: "Order Confirmed",
-                body: $"Your order for {order.Event.Title} has been confirmed. {ticketCount} ticket(s) issued.",
-                type: NotificationType.General,
+                title: "Payment Successful",
+                body: $"Your payment was successful! {ticketCount} ticket(s) for {order.Event.Title} have been issued.",
+                type: NotificationType.OrderPaid,
                 referenceId: order.Id.ToString()
             );
 

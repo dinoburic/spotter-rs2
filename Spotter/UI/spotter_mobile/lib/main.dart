@@ -50,7 +50,7 @@ void main() async {
           create: (_) => FavoriteProvider(authProvider.baseProvider),
         ),
         ChangeNotifierProvider(
-          create: (_) => NotificationProvider(authProvider.baseProvider),
+          create: (_) => NotificationProvider(authProvider.baseProvider, authProvider),
         ),
         ChangeNotifierProvider(
           create: (_) => ProfileProvider(authProvider.baseProvider),

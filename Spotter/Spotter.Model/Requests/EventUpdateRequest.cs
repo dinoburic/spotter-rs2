@@ -3,7 +3,7 @@ namespace Spotter.Model.Requests
     public class EventUpdateRequest
     {
         public string Title { get; set; } = string.Empty;
-        public string Description { get; set; } = string.Empty;
+        public string? Description { get; set; }
         public int CategoryId { get; set; }
         public int VenueId { get; set; }
         public DateTime StartsAt { get; set; }

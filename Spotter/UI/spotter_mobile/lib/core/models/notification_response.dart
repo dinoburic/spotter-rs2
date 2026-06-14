@@ -22,6 +22,15 @@ class NotificationResponse {
   });
 
   factory NotificationResponse.fromJson(Map<String, dynamic> json) {
+    int? refId;
+    if (json['referenceId'] != null) {
+      if (json['referenceId'] is int) {
+        refId = json['referenceId'] as int;
+      } else if (json['referenceId'] is String) {
+        refId = int.tryParse(json['referenceId'] as String);
+      }
+    }
+
     return NotificationResponse(
       id: json['id'] as int,
       userId: json['userId'] as int,
@@ -29,7 +38,7 @@ class NotificationResponse {
       body: json['body'] as String,
       type: json['type'] as int,
       typeName: json['typeName'] as String,
-      referenceId: json['referenceId'] as int?,
+      referenceId: refId,
       isRead: json['isRead'] as bool,
       createdAt: DateTime.parse(json['createdAt'] as String),
     );

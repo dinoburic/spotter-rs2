@@ -25,8 +25,19 @@ namespace Spotter.Services
             _logger = logger;
         }
 
+        protected override Task<IQueryable<User>> IncludeRelatedEntitiesAsync(UserSearch? search, IQueryable<User> query)
+{
+    query = query
+        .Include(u => u.UserRoles)
+        .ThenInclude(ur => ur.Role)
+        .Include(u => u.City);
+    return Task.FromResult(query);
+}
+
         protected override IQueryable<User> ApplyFilters(IQueryable<User> query, UserSearch? search)
         {
+            query = query.Where(u => !u.IsDeleted);
+
             if (search == null)
                 return query;
 
@@ -147,6 +158,35 @@ namespace Spotter.Services
             var response = _mapper.Map<UserResponse>(user);
             response.Role = user.UserRoles.First().Role.Name;
             return response;
+        }
+
+        public async Task ChangePasswordAsync(int userId, ChangePasswordRequest request)
+        {
+            _logger.LogInformation("Changing password for user {UserId}", userId);
+
+            var validator = new Validators.ChangePasswordValidator();
+            await validator.ValidateAndThrowAsync(request);
+
+            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == userId);
+            if (user == null)
+            {
+                _logger.LogWarning("User {UserId} not found", userId);
+                throw new NotFoundException("User not found.");
+            }
+
+            var currentHash = _cryptoService.GenerateHash(request.CurrentPassword, user.PasswordSalt);
+            if (currentHash != user.PasswordHash)
+            {
+                _logger.LogWarning("Current password incorrect for user {UserId}", userId);
+                throw new ClientException("Current password is incorrect.");
+            }
+
+            var newSalt = _cryptoService.GenerateSlat();
+            user.PasswordSalt = newSalt;
+            user.PasswordHash = _cryptoService.GenerateHash(request.NewPassword, newSalt);
+
+            await _dbContext.SaveChangesAsync();
+            _logger.LogInformation("Password changed successfully for user {UserId}", userId);
         }
     }
 }

@@ -174,6 +174,7 @@ builder.Services.AddScoped<IValidator<ReviewInsertRequest>, ReviewInsertRequestV
 builder.Services.AddScoped<IValidator<ReviewUpdateRequest>, ReviewUpdateRequestValidator>();
 builder.Services.AddScoped<IValidator<ReservationInsertRequest>, ReservationInsertRequestValidator>();
 builder.Services.AddScoped<IValidator<WaitlistJoinRequest>, WaitlistJoinRequestValidator>();
+builder.Services.AddScoped<IValidator<ChangePasswordRequest>, ChangePasswordValidator>();
 
 builder.Services.AddOpenApi();
 
@@ -278,6 +279,12 @@ builder.Services.AddSwaggerGen(
             { jwtSecurityScheme, Array.Empty<string>() }
         });
     });
+
+TypeAdapterConfig<User, UserResponse>.NewConfig()
+    .Map(dest => dest.Role, src => src.UserRoles != null && src.UserRoles.Any()
+        ? src.UserRoles.First().Role.Name
+        : string.Empty)
+    .Map(dest => dest.CityName, src => src.City != null ? src.City.Name : string.Empty);
 
 var app = builder.Build();
 

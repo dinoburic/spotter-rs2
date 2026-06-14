@@ -10,8 +10,9 @@ import '../../widgets/loading_indicator.dart';
 
 class TicketTypeFormScreen extends StatefulWidget {
   final int? ticketTypeId;
+  final int? preselectedEventId;
 
-  const TicketTypeFormScreen({super.key, this.ticketTypeId});
+  const TicketTypeFormScreen({super.key, this.ticketTypeId, this.preselectedEventId});
 
   @override
   State<TicketTypeFormScreen> createState() => _TicketTypeFormScreenState();
@@ -69,6 +70,8 @@ class _TicketTypeFormScreenState extends State<TicketTypeFormScreen> {
         _quantityController.text = ticketType.totalQuantity.toString();
         _selectedEventId = ticketType.eventId;
         _selectedTypeEnum = ticketType.typeEnum;
+      } else if (widget.preselectedEventId != null) {
+        _selectedEventId = widget.preselectedEventId;
       }
     } catch (e) {
       if (mounted) {

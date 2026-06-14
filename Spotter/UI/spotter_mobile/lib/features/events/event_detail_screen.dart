@@ -299,7 +299,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                               '${ticketType.price.toStringAsFixed(2)} BAM',
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
-                                fontSize: 16,
+                                fontSize: 10,
                               ),
                             ),
                             Text(
@@ -308,7 +308,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                                 color: ticketType.availableQuantity > 0
                                     ? AppColors.success
                                     : AppColors.error,
-                                fontSize: 12,
+                                fontSize: 7,
                               ),
                             ),
                           ],
@@ -376,15 +376,19 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _createReservation,
-                  child: const Text('Reserve'),
+              OutlinedButton(
+                onPressed: _createReservation,
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                ),
+                child: const Text(
+                  'Reserve',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
               Expanded(
-                flex: 2,
                 child: ElevatedButton(
                   onPressed: isSoldOut
                       ? null

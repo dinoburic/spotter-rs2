@@ -99,4 +99,38 @@ class OrderProvider extends ChangeNotifier {
   void setPage(int page) {
     currentPage = page;
   }
+
+  Future<List<OrderResponse>> loadForReport({
+    DateTime? from,
+    DateTime? to,
+    int? categoryId,
+  }) async {
+    final result = await _baseProvider.get<PageResult<OrderResponse>>(
+      ApiConstants.orders,
+      token: _token,
+      queryParameters: {
+        'status': 1,
+        'pageSize': 100,
+      },
+      fromJson: (json) => PageResult.fromJson(
+        json,
+        (item) => OrderResponse.fromJson(item),
+      ),
+    );
+
+    var filtered = result.items;
+
+    if (from != null) {
+      filtered = filtered
+          .where((o) => o.createdAt.isAfter(from.subtract(const Duration(days: 1))))
+          .toList();
+    }
+    if (to != null) {
+      filtered = filtered
+          .where((o) => o.createdAt.isBefore(to.add(const Duration(days: 1))))
+          .toList();
+    }
+
+    return filtered;
+  }
 }

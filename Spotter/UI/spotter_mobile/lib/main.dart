@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'core/constants/app_colors.dart';
+import 'core/constants/navigator_key.dart';
 import 'core/providers/auth_provider.dart';
 import 'core/providers/event_provider.dart';
 import 'core/providers/ticket_provider.dart';
@@ -12,6 +13,7 @@ import 'core/providers/notification_provider.dart';
 import 'core/providers/profile_provider.dart';
 import 'core/providers/review_provider.dart';
 import 'core/providers/payment_provider.dart';
+import 'core/providers/recommendation_provider.dart';
 import 'features/auth/login_screen.dart';
 import 'features/home/home_screen.dart';
 
@@ -59,6 +61,9 @@ void main() async {
         ChangeNotifierProvider(
           create: (_) => PaymentProvider(authProvider.baseProvider),
         ),
+        ChangeNotifierProvider(
+          create: (_) => RecommendationProvider(authProvider.baseProvider),
+        ),
       ],
       child: const SpotterApp(),
     ),
@@ -73,6 +78,7 @@ class SpotterApp extends StatelessWidget {
     final auth = context.watch<AuthProvider>();
 
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: 'Spotter',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(

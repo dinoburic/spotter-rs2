@@ -5,6 +5,7 @@ import '../constants/api_constants.dart';
 import '../models/event_response.dart';
 import '../models/event_insert_request.dart';
 import '../models/event_update_request.dart';
+import '../models/ticket_type_response.dart';
 import '../models/page_result.dart';
 
 class EventProvider extends ChangeNotifier {
@@ -79,18 +80,13 @@ class EventProvider extends ChangeNotifier {
     return result.items;
   }
 
-  Future<EventResponse?> getEventById(int id) async {
-  try {
+  Future<EventResponse> getById(int id) async {
     return await _baseProvider.get<EventResponse>(
       '${ApiConstants.events}/$id',
       token: _token,
       fromJson: (json) => EventResponse.fromJson(json),
     );
-  } catch (e) {
-    error = e.toString();
-    return null;
   }
-}
 
   Future<void> insert(EventInsertRequest request) async {
     await _baseProvider.post<EventResponse>(

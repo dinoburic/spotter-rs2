@@ -89,6 +89,22 @@ class TicketProvider extends ChangeNotifier {
     return result.items;
   }
 
+  Future<List<TicketResponse>> loadForGuestList(int eventId) async {
+    final result = await _baseProvider.get<PageResult<TicketResponse>>(
+      ApiConstants.tickets,
+      token: _token,
+      queryParameters: {
+        'eventId': eventId,
+        'pageSize': 200,
+      },
+      fromJson: (json) => PageResult.fromJson(
+        json,
+        (item) => TicketResponse.fromJson(item),
+      ),
+    );
+    return result.items;
+  }
+
   void setPage(int page) {
     currentPage = page;
   }

@@ -12,7 +12,16 @@ class AuthProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
 
-  AuthProvider() : _baseProvider = BaseProvider();
+  AuthProvider() : _baseProvider = BaseProvider() {
+    _baseProvider.onUnauthorized = _clearSession;
+  }
+
+  Future<void> _clearSession() async {
+    _currentUser = null;
+    _baseProvider.setToken(null);
+    await _clearStorage();
+    notifyListeners();
+  }
 
   LoginResponse? get currentUser => _currentUser;
   bool get isLoading => _isLoading;

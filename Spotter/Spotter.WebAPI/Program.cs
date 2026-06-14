@@ -147,6 +147,8 @@ builder.Services.AddScoped<IBadgeService, BadgeService>();
 builder.Services.AddScoped<IWaitlistService, WaitlistService>();
 builder.Services.AddScoped<IStripeService, StripeService>();
 builder.Services.AddSingleton<IRabbitMqPublisher, RabbitMqPublisher>();
+builder.Services.AddScoped<IRecommendationService, RecommendationService>();
+builder.Services.AddHostedService<RecommendationTrainingService>();
 
 builder.Services.AddScoped<EventStateMachine>();
 builder.Services.AddScoped<OrderStateMachine>();

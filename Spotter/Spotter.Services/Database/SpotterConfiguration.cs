@@ -289,7 +289,7 @@ namespace Spotter.Services.Database
             {
                 entity.HasIndex(ui => new { ui.UserId, ui.CategoryId }).IsUnique();
                 entity.HasOne(ui => ui.User)
-                    .WithMany()
+                    .WithMany(u => u.UserInterests)
                     .HasForeignKey(ui => ui.UserId)
                     .OnDelete(DeleteBehavior.Cascade);
                 entity.HasOne(ui => ui.Category)

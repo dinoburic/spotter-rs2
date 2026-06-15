@@ -114,6 +114,36 @@ namespace Spotter.Services
                 .Include(e => e.TicketTypes)
                 .FirstAsync(e => e.Id == entity.Id);
 
+            if (createdEvent.Venue?.City != null)
+            {
+                var usersInCity = await _dbContext.Users
+                    .Where(u => u.CityId == createdEvent.Venue.City.Id &&
+                                u.IsActive &&
+                                !u.IsDeleted &&
+                                u.Id != entity.OrganizerId)
+                    .Select(u => u.Id)
+                    .ToListAsync();
+
+                var notifications = usersInCity.Select(userId => new Notification
+                {
+                    UserId = userId,
+                    Title = "New Event Near You!",
+                    Body = $"'{entity.Title}' has been added in {createdEvent.Venue.City.Name}. Check it out!",
+                    Type = NotificationType.NewEventInCity,
+                    IsRead = false,
+                    CreatedAt = DateTime.UtcNow,
+                    ReferenceId = entity.Id
+                }).ToList();
+
+                if (notifications.Any())
+                {
+                    _dbContext.Notifications.AddRange(notifications);
+                    await _dbContext.SaveChangesAsync();
+                    _logger.LogInformation("Sent {Count} notifications for new event {EventId} in {City}",
+                        notifications.Count, entity.Id, createdEvent.Venue.City.Name);
+                }
+            }
+
             _logger.LogInformation("Event {EventId} created successfully", entity.Id);
             return _mapper.Map<EventResponse>(createdEvent);
         }
@@ -211,6 +241,40 @@ namespace Spotter.Services
 
             _eventStateMachine.Transition(entity, EventStatus.Active);
             await _dbContext.SaveChangesAsync();
+
+            var venue = await _dbContext.Venues
+                .Include(v => v.City)
+                .FirstOrDefaultAsync(v => v.Id == entity.VenueId);
+
+            if (venue?.City != null)
+            {
+                var usersInCity = await _dbContext.Users
+                    .Where(u => u.CityId == venue.City.Id &&
+                                u.IsActive &&
+                                !u.IsDeleted &&
+                                u.Id != entity.OrganizerId)
+                    .Select(u => u.Id)
+                    .ToListAsync();
+
+                if (usersInCity.Any())
+                {
+                    var notifications = usersInCity.Select(userId => new Notification
+                    {
+                        UserId = userId,
+                        Title = "New Event Near You!",
+                        Body = $"'{entity.Title}' is now available in {venue.City.Name}. Check it out!",
+                        Type = NotificationType.NewEventInCity,
+                        IsRead = false,
+                        CreatedAt = DateTime.UtcNow,
+                        ReferenceId = entity.Id
+                    }).ToList();
+
+                    _dbContext.Notifications.AddRange(notifications);
+                    await _dbContext.SaveChangesAsync();
+                    _logger.LogInformation("Sent {Count} notifications for activated event {EventId} in {City}",
+                        notifications.Count, entity.Id, venue.City.Name);
+                }
+            }
 
             _logger.LogInformation("Event {EventId} activated successfully", id);
             return _mapper.Map<EventResponse>(entity);

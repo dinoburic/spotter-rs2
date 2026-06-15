@@ -3,6 +3,7 @@ import 'base_provider.dart';
 import '../constants/api_constants.dart';
 import '../models/user_response.dart';
 import '../models/user_update_request.dart';
+import '../models/change_password_request.dart';
 import '../models/badge_response.dart';
 import '../models/points_response.dart';
 import '../models/city_response.dart';
@@ -19,14 +20,14 @@ class ProfileProvider extends ChangeNotifier {
 
   ProfileProvider(this._baseProvider);
 
-  Future<void> loadProfile(int userId) async {
+  Future<void> loadProfile() async {
     isLoading = true;
     error = null;
     notifyListeners();
 
     try {
       profile = await _baseProvider.get<UserResponse>(
-        '${ApiConstants.users}/$userId',
+        '${ApiConstants.users}/me',
         fromJson: (json) => UserResponse.fromJson(json),
       );
     } catch (e) {
@@ -86,14 +87,14 @@ class ProfileProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> updateProfile(int userId, UserUpdateRequest request) async {
+  Future<bool> updateProfile(UserUpdateRequest request) async {
     isLoading = true;
     error = null;
     notifyListeners();
 
     try {
       profile = await _baseProvider.put<UserResponse>(
-        '${ApiConstants.users}/$userId',
+        '${ApiConstants.users}/me',
         data: request.toJson(),
         fromJson: (json) => UserResponse.fromJson(json),
       );
@@ -106,6 +107,28 @@ class ProfileProvider extends ChangeNotifier {
     } finally {
       isLoading = false;
       notifyListeners();
+    }
+  }
+
+  Future<bool> changePassword(ChangePasswordRequest request) async {
+    isLoading = true;
+    error = null;
+    notifyListeners();
+
+    try {
+      await _baseProvider.post<Map<String, dynamic>>(
+        '${ApiConstants.users}/change-password',
+        data: request.toJson(),
+        fromJson: (json) => json as Map<String, dynamic>,
+      );
+      isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      error = e.toString().replaceAll('Exception: ', '');
+      isLoading = false;
+      notifyListeners();
+      return false;
     }
   }
 

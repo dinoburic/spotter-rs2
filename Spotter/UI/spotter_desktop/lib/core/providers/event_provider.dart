@@ -88,8 +88,8 @@ class EventProvider extends ChangeNotifier {
     );
   }
 
-  Future<void> insert(EventInsertRequest request) async {
-    await _baseProvider.post<EventResponse>(
+  Future<EventResponse> insert(EventInsertRequest request) async {
+    return await _baseProvider.post<EventResponse>(
       ApiConstants.events,
       token: _token,
       data: request.toJson(),

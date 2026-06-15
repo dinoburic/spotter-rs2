@@ -88,10 +88,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 25),
               Text(
                 'Welcome back',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: AppColors.textPrimary,
                     ),
@@ -100,7 +100,7 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 8),
               Text(
                 'Sign in to discover amazing events',
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: AppColors.textSecondary,
                     ),
                 textAlign: TextAlign.center,
@@ -110,6 +110,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 controller: _usernameController,
                 decoration: InputDecoration(
                   labelText: 'Username',
+                  labelStyle: const TextStyle(fontSize: 10),
                   prefixIcon: const Icon(Icons.person_outline),
                   errorText: _usernameError,
                 ),
@@ -121,6 +122,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 obscureText: true,
                 decoration: InputDecoration(
                   labelText: 'Password',
+                  labelStyle: const TextStyle(fontSize: 10),
                   prefixIcon: const Icon(Icons.lock_outline),
                   errorText: _passwordError,
                 ),
@@ -129,13 +131,13 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 24),
               SizedBox(
-                height: 50,
+                height: 55,
                 child: ElevatedButton(
                   onPressed: auth.isLoading ? null : _login,
                   child: auth.isLoading
                       ? const SizedBox(
                           width: 24,
-                          height: 24,
+                          height: 30,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
                             color: Colors.white,
@@ -143,7 +145,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         )
                       : const Text(
                           'Login',
-                          style: TextStyle(fontSize: 16),
+                          style: TextStyle(fontSize: 10),
                         ),
                 ),
               ),
@@ -165,7 +167,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 children: [
                   Text(
                     "Don't have an account? ",
-                    style: TextStyle(color: AppColors.textSecondary),
+                    style: TextStyle(color: AppColors.textSecondary, 
+                    fontSize: 10),
                   ),
                   TextButton(
                     onPressed: () {
@@ -177,7 +180,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       );
                     },
-                    child: const Text('Register'),
+                    child: const Text('Register', style: TextStyle(fontSize: 10)),
                   ),
                 ],
               ),

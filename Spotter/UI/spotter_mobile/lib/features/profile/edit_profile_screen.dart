@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
-import '../../core/providers/auth_provider.dart';
 import '../../core/providers/profile_provider.dart';
 import '../../core/models/user_update_request.dart';
 
@@ -86,7 +85,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Future<void> _save() async {
     if (!_validate()) return;
 
-    final auth = context.read<AuthProvider>();
     final profileProvider = context.read<ProfileProvider>();
 
     final request = UserUpdateRequest(
@@ -98,7 +96,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       cityId: _selectedCityId!,
     );
 
-    final success = await profileProvider.updateProfile(auth.userId, request);
+    final success = await profileProvider.updateProfile(request);
 
     if (mounted && success) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -135,6 +133,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               controller: _firstNameController,
               decoration: InputDecoration(
                 labelText: 'First Name',
+                labelStyle: const TextStyle(fontSize: 10),
                 errorText: _firstNameError,
               ),
               textInputAction: TextInputAction.next,
@@ -144,6 +143,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               controller: _lastNameController,
               decoration: InputDecoration(
                 labelText: 'Last Name',
+                labelStyle: const TextStyle(fontSize: 10),
                 errorText: _lastNameError,
               ),
               textInputAction: TextInputAction.next,
@@ -153,6 +153,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               controller: _emailController,
               decoration: InputDecoration(
                 labelText: 'Email',
+                labelStyle: const TextStyle(fontSize: 10),
                 errorText: _emailError,
               ),
               keyboardType: TextInputType.emailAddress,
@@ -163,15 +164,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               controller: _phoneController,
               decoration: const InputDecoration(
                 labelText: 'Phone Number (optional)',
+                labelStyle: const TextStyle(fontSize: 10),
               ),
               keyboardType: TextInputType.phone,
               textInputAction: TextInputAction.next,
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<int>(
+              isExpanded: true,
               value: _selectedCityId,
               decoration: InputDecoration(
                 labelText: 'City',
+                labelStyle: const TextStyle(fontSize: 10),
                 errorText: _cityError,
               ),
               items: profileProvider.cities.map((city) {

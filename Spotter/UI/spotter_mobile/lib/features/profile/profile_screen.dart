@@ -7,6 +7,7 @@ import '../auth/login_screen.dart';
 import '../orders/order_history_screen.dart';
 import '../reservations/my_reservations_screen.dart';
 import 'edit_profile_screen.dart';
+import 'change_password_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -22,7 +23,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final auth = context.read<AuthProvider>();
       final profileProvider = context.read<ProfileProvider>();
-      profileProvider.loadProfile(auth.userId);
+      profileProvider.loadProfile();
       profileProvider.loadBadges(auth.userId);
       profileProvider.loadPointsBalance();
     });
@@ -235,6 +236,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 context,
                 MaterialPageRoute(
                   builder: (_) => const MyReservationsScreen(),
+                ),
+              );
+            },
+          ),
+          _buildActionButton(
+            icon: Icons.lock_outline,
+            label: 'Change Password',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const ChangePasswordScreen(),
                 ),
               );
             },

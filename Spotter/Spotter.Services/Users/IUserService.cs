@@ -9,5 +9,6 @@ namespace Spotter.Services
     {
         Task<UserSensitveResponse?> GetByUsernameAsync(string username);
         Task<UserResponse?> GetWithRoleByIdAsync(int id);
+        Task ChangePasswordAsync(int userId, ChangePasswordRequest request);
     }
 }

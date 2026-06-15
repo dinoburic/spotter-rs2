@@ -7,7 +7,7 @@ class ApiConstants {
   static const String login = '/api/access/login';
   static const String refresh = '/api/access/refresh';
   static const String logout = '/api/access/logout';
-  static const String users = '/api/users';
+  static const String users = '/api/Users';
   static const String cities = '/api/cities';
   static const String categories = '/api/categories';
   static const String venues = '/api/venues';

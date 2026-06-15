@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'core/constants/app_colors.dart';
+import 'core/constants/navigator_key.dart';
 import 'core/providers/auth_provider.dart';
 import 'core/providers/base_provider.dart';
 import 'core/providers/city_provider.dart';
@@ -86,6 +87,7 @@ class SpotterAdminApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
+        navigatorKey: navigatorKey,
         title: 'Spotter Admin',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(

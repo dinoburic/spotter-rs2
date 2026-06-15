@@ -4,16 +4,25 @@ import 'base_provider.dart';
 import '../constants/api_constants.dart';
 import '../models/notification_response.dart';
 import '../models/page_result.dart';
+import 'auth_provider.dart';
 
 class NotificationProvider extends ChangeNotifier {
   final BaseProvider _baseProvider;
+  AuthProvider? _authProvider;
   List<NotificationResponse> notifications = [];
   int unreadCount = 0;
   bool isLoading = false;
   String? error;
   Timer? _pollTimer;
 
-  NotificationProvider(this._baseProvider);
+
+  NotificationProvider(this._baseProvider, this._authProvider);
+
+  void updateAuth(AuthProvider auth) {
+    _authProvider = auth;
+  }
+
+  String? get _token => _authProvider?.token;
 
   void startPolling() {
     _pollTimer?.cancel();
@@ -28,39 +37,41 @@ class NotificationProvider extends ChangeNotifier {
   }
 
   Future<void> loadNotifications() async {
-    isLoading = true;
-    error = null;
-    notifyListeners();
+  if (_authProvider?.token == null) return;
+  isLoading = true;
+  error = null;
+  notifyListeners();
 
-    try {
-      final result = await _baseProvider.get<PageResult<NotificationResponse>>(
-        '${ApiConstants.notifications}/my',
-        queryParameters: {'page': 1, 'pageSize': 100},
-        fromJson: (json) => PageResult.fromJson(
-          json,
-          (item) => NotificationResponse.fromJson(item),
-        ),
-      );
-      notifications = result.items;
-      unreadCount = notifications.where((n) => !n.isRead).length;
-    } catch (e) {
-      error = e.toString().replaceAll('Exception: ', '');
-    } finally {
-      isLoading = false;
-      notifyListeners();
-    }
+  try {
+    final result = await _baseProvider.get<PageResult<NotificationResponse>>(
+      ApiConstants.notifications,
+      queryParameters: {'page': 1, 'pageSize': 100},
+      fromJson: (json) => PageResult.fromJson(
+        json,
+        (item) => NotificationResponse.fromJson(item),
+      ),
+    );
+    notifications = result.items;
+    unreadCount = notifications.where((n) => !n.isRead).length;
+  } catch (e) {
+    error = e.toString().replaceAll('Exception: ', '');
+  } finally {
+    isLoading = false;
+    notifyListeners();
   }
+}
 
   Future<void> loadUnreadCount() async {
-    try {
-      final count = await _baseProvider.get<int>(
-        '${ApiConstants.notifications}/unread-count',
-        fromJson: (json) => json as int,
-      );
-      unreadCount = count;
-      notifyListeners();
-    } catch (_) {}
-  }
+  if (_authProvider?.token == null) return;
+  try {
+    final result = await _baseProvider.get<Map<String, dynamic>>(
+      '${ApiConstants.notifications}/unread-count',
+      fromJson: (json) => json as Map<String, dynamic>,
+    );
+    unreadCount = result['count'] as int? ?? 0;
+    notifyListeners();
+  } catch (_) {}
+}
 
   Future<void> markAsRead(int id) async {
     try {

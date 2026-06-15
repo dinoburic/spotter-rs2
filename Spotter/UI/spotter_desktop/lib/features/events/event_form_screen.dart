@@ -12,6 +12,7 @@ import '../../core/models/venue_response.dart';
 import '../../core/constants/app_colors.dart';
 import '../../widgets/loading_indicator.dart';
 import '../../widgets/confirm_dialog.dart';
+import '../ticket_types/ticket_type_form_screen.dart';
 
 class EventFormScreen extends StatefulWidget {
   final int? eventId;
@@ -216,7 +217,38 @@ class _EventFormScreenState extends State<EventFormScreen> {
               ? null
               : _coverUrlController.text,
         );
-        await provider.insert(request);
+        final createdEvent = await provider.insert(request);
+
+        if (mounted) {
+          final addTicketTypes = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Event Created'),
+              content: const Text(
+                  'Would you like to add ticket types for this event now?'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Not Now'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Add Ticket Types'),
+                ),
+              ],
+            ),
+          );
+
+          if (addTicketTypes == true && mounted) {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    TicketTypeFormScreen(preselectedEventId: createdEvent.id),
+              ),
+            );
+          }
+        }
       }
 
       if (mounted) {

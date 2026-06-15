@@ -4,6 +4,7 @@ class RegisterRequest {
   final String username;
   final String email;
   final String password;
+  final String confirmPassword;
   final String? phoneNumber;
   final int cityId;
 
@@ -13,6 +14,7 @@ class RegisterRequest {
     required this.username,
     required this.email,
     required this.password,
+    required this.confirmPassword,
     this.phoneNumber,
     required this.cityId,
   });
@@ -24,6 +26,7 @@ class RegisterRequest {
       'username': username,
       'email': email,
       'password': password,
+      'confirmPassword': confirmPassword,
       if (phoneNumber != null) 'phoneNumber': phoneNumber,
       'cityId': cityId,
     };

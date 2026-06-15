@@ -142,6 +142,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       username: _usernameController.text,
       email: _emailController.text,
       password: _passwordController.text,
+      confirmPassword: _confirmPasswordController.text,
       phoneNumber: _phoneController.text.isNotEmpty ? _phoneController.text : null,
       cityId: _selectedCityId!,
     );
@@ -185,6 +186,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             controller: _firstNameController,
                             decoration: InputDecoration(
                               labelText: 'First Name',
+                              labelStyle: const TextStyle(fontSize: 10),
                               errorText: _firstNameError,
                             ),
                             textInputAction: TextInputAction.next,
@@ -201,6 +203,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             controller: _lastNameController,
                             decoration: InputDecoration(
                               labelText: 'Last Name',
+                              labelStyle: const TextStyle(fontSize: 10),
                               errorText: _lastNameError,
                             ),
                             textInputAction: TextInputAction.next,
@@ -215,6 +218,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   controller: _usernameController,
                   decoration: InputDecoration(
                     labelText: 'Username',
+                    labelStyle: const TextStyle(fontSize: 10),
                     prefixIcon: const Icon(Icons.person_outline),
                     errorText: _usernameError,
                   ),
@@ -225,6 +229,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   controller: _emailController,
                   decoration: InputDecoration(
                     labelText: 'Email',
+                    labelStyle: const TextStyle(fontSize: 10),
                     prefixIcon: const Icon(Icons.email_outlined),
                     errorText: _emailError,
                   ),
@@ -237,6 +242,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   obscureText: true,
                   decoration: InputDecoration(
                     labelText: 'Password',
+                    labelStyle: const TextStyle(fontSize: 10),
                     prefixIcon: const Icon(Icons.lock_outline),
                     errorText: _passwordError,
                   ),
@@ -248,6 +254,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   obscureText: true,
                   decoration: InputDecoration(
                     labelText: 'Confirm Password',
+                    labelStyle: const TextStyle(fontSize: 10),
                     prefixIcon: const Icon(Icons.lock_outline),
                     errorText: _confirmPasswordError,
                   ),
@@ -258,6 +265,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   controller: _phoneController,
                   decoration: const InputDecoration(
                     labelText: 'Phone Number (optional)',
+                    labelStyle: const TextStyle(fontSize: 10),
                     prefixIcon: Icon(Icons.phone_outlined),
                   ),
                   keyboardType: TextInputType.phone,
@@ -268,15 +276,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ? const Center(child: CircularProgressIndicator())
                     : DropdownButtonFormField<int>(
                         value: _selectedCityId,
+                        isExpanded: true,
                         decoration: InputDecoration(
                           labelText: 'City',
+                          labelStyle: const TextStyle(fontSize: 10),
                           prefixIcon: const Icon(Icons.location_city_outlined),
                           errorText: _cityError,
                         ),
                         items: _cities.map((city) {
                           return DropdownMenuItem(
                             value: city.id,
-                            child: Text('${city.name}, ${city.country}'),
+                            child: Text(
+                              '${city.name}, ${city.country}',
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           );
                         }).toList(),
                         onChanged: (value) {
@@ -288,7 +301,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                 const SizedBox(height: 32),
                 SizedBox(
-                  height: 50,
+                  height: 60,
                   child: ElevatedButton(
                     onPressed: auth.isLoading ? null : _register,
                     child: auth.isLoading
@@ -302,7 +315,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           )
                         : const Text(
                             'Register',
-                            style: TextStyle(fontSize: 16),
+                            style: TextStyle(fontSize: 12),
                           ),
                   ),
                 ),

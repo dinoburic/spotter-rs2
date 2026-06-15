@@ -1,11 +1,34 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/api_constants.dart';
+import '../constants/navigator_key.dart';
+import '../../features/auth/login_screen.dart';
 
 class BaseProvider {
   final Dio _dio;
+  static bool _isRedirecting = false;
 
-  BaseProvider() : _dio = Dio(BaseOptions(baseUrl: ApiConstants.baseUrl));
+  BaseProvider() : _dio = Dio(BaseOptions(baseUrl: ApiConstants.baseUrl)) {
+    _dio.interceptors.add(
+      InterceptorsWrapper(
+        onError: (error, handler) async {
+  if (error.response?.statusCode == 401) {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('accessToken');
+    if (token != null) {
+      await prefs.clear();
+      navigatorKey.currentState?.pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    }
+  }
+  handler.next(error);
+},
+      ),
+    );
+  }
 
   Future<T> get<T>(
     String endpoint, {

@@ -1,5 +1,3 @@
-using System.ComponentModel.DataAnnotations;
-
 namespace Spotter.Model.Requests
 {
     public class UserUpdateRequest
@@ -9,6 +7,7 @@ namespace Spotter.Model.Requests
         public string? Email { get; set; }
         public string? Username { get; set; }
         public string? PhoneNumber { get; set; }
-        public bool IsActive { get; set; }
+        public int? CityId { get; set; }
+        public bool? IsActive { get; set; }
     }
 }

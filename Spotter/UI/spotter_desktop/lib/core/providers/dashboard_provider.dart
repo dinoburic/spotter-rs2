@@ -39,7 +39,7 @@ class DashboardProvider extends ChangeNotifier {
       final eventResult = await _baseProvider.get<PageResult<EventResponse>>(
         ApiConstants.events,
         token: _token,
-        queryParameters: {'pageSize': 1},
+        queryParameters: {'pageSize': 1, 'includeTotalCount': true},
         fromJson: (json) => PageResult.fromJson(
           json,
           (item) => EventResponse.fromJson(item),
@@ -50,7 +50,7 @@ class DashboardProvider extends ChangeNotifier {
       final orderResult = await _baseProvider.get<PageResult<OrderResponse>>(
         ApiConstants.orders,
         token: _token,
-        queryParameters: {'pageSize': 1},
+        queryParameters: {'pageSize': 1, 'includeTotalCount': true},
         fromJson: (json) => PageResult.fromJson(
           json,
           (item) => OrderResponse.fromJson(item),
@@ -61,7 +61,7 @@ class DashboardProvider extends ChangeNotifier {
       final userResult = await _baseProvider.get<PageResult<UserResponse>>(
         ApiConstants.users,
         token: _token,
-        queryParameters: {'pageSize': 1},
+        queryParameters: {'pageSize': 1, 'includeTotalCount': true},
         fromJson: (json) => PageResult.fromJson(
           json,
           (item) => UserResponse.fromJson(item),
@@ -73,7 +73,7 @@ class DashboardProvider extends ChangeNotifier {
           await _baseProvider.get<PageResult<ReservationResponse>>(
         ApiConstants.reservations,
         token: _token,
-        queryParameters: {'status': 0, 'pageSize': 1},
+        queryParameters: {'status': 0, 'pageSize': 1, 'includeTotalCount': true},
         fromJson: (json) => PageResult.fromJson(
           json,
           (item) => ReservationResponse.fromJson(item),
@@ -84,7 +84,7 @@ class DashboardProvider extends ChangeNotifier {
       final pendingResult = await _baseProvider.get<PageResult<OrderResponse>>(
         ApiConstants.orders,
         token: _token,
-        queryParameters: {'status': 0, 'pageSize': 1},
+        queryParameters: {'status': 0, 'pageSize': 1, 'includeTotalCount': true},
         fromJson: (json) => PageResult.fromJson(
           json,
           (item) => OrderResponse.fromJson(item),
@@ -95,7 +95,7 @@ class DashboardProvider extends ChangeNotifier {
       final paidResult = await _baseProvider.get<PageResult<OrderResponse>>(
         ApiConstants.orders,
         token: _token,
-        queryParameters: {'status': 1, 'pageSize': 1},
+        queryParameters: {'status': 1, 'pageSize': 1, 'includeTotalCount': true},
         fromJson: (json) => PageResult.fromJson(
           json,
           (item) => OrderResponse.fromJson(item),
@@ -106,7 +106,7 @@ class DashboardProvider extends ChangeNotifier {
       final refundedResult = await _baseProvider.get<PageResult<OrderResponse>>(
         ApiConstants.orders,
         token: _token,
-        queryParameters: {'status': 2, 'pageSize': 1},
+        queryParameters: {'status': 2, 'pageSize': 1, 'includeTotalCount': true},
         fromJson: (json) => PageResult.fromJson(
           json,
           (item) => OrderResponse.fromJson(item),

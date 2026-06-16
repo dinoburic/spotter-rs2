@@ -34,6 +34,7 @@ class CategoryProvider extends ChangeNotifier {
       final queryParams = <String, dynamic>{
         'page': currentPage,
         'pageSize': pageSize,
+        'includeTotalCount': true,
       };
       if (name != null && name.isNotEmpty) {
         queryParams['name'] = name;

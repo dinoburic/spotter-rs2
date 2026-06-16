@@ -33,6 +33,7 @@ class TicketProvider extends ChangeNotifier {
       final queryParams = <String, dynamic>{
         'page': currentPage,
         'pageSize': pageSize,
+        'includeTotalCount': true,
       };
       if (eventId != null) {
         queryParams['eventId'] = eventId;
@@ -69,10 +70,12 @@ class TicketProvider extends ChangeNotifier {
     );
   }
 
-  Future<void> useTicket(int id) async {
-    await _baseProvider.postAction(
-      '${ApiConstants.tickets}/$id/use',
+  Future<void> useTicket(String qrCodePayload) async {
+    await _baseProvider.post<void>(
+      '${ApiConstants.tickets}/use',
       token: _token,
+      data: {'qrCodePayload': qrCodePayload},
+      fromJson: (_) {},
     );
   }
 

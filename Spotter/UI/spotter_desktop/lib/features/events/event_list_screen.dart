@@ -144,8 +144,9 @@ class _EventListScreenState extends State<EventListScreen> {
                         message: 'No events found',
                       )
                     : SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: DataTable(
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: DataTable(
                           columns: const [
                             DataColumn(label: Text('Title')),
                             DataColumn(label: Text('Category')),
@@ -223,6 +224,7 @@ class _EventListScreenState extends State<EventListScreen> {
                           }).toList(),
                         ),
                       ),
+                    ),
           ),
           PaginationControls(
             currentPage: provider.currentPage,

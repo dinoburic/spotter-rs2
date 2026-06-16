@@ -127,8 +127,8 @@ class _CategoryListScreenState extends State<CategoryListScreen> {
                         message: 'No categories found',
                       )
                     : SingleChildScrollView(
-                        child: SizedBox(
-                          width: double.infinity,
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
                           child: DataTable(
                             columns: const [
                               DataColumn(label: Text('Color')),

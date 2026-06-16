@@ -35,6 +35,7 @@ class UserProvider extends ChangeNotifier {
       final queryParams = <String, dynamic>{
         'page': currentPage,
         'pageSize': pageSize,
+        'includeTotalCount': true,
       };
       if (username != null && username.isNotEmpty) {
         queryParams['username'] = username;

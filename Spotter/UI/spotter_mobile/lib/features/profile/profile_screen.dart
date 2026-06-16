@@ -4,6 +4,8 @@ import '../../core/constants/app_colors.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/profile_provider.dart';
 import '../auth/login_screen.dart';
+import '../events/create_event_screen.dart';
+import '../events/my_events_screen.dart';
 import '../orders/order_history_screen.dart';
 import '../reservations/my_reservations_screen.dart';
 import 'edit_profile_screen.dart';
@@ -204,6 +206,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ],
           const SizedBox(height: 24),
+          if (context.read<AuthProvider>().role == 'Organizer' ||
+              context.read<AuthProvider>().role == 'Admin') ...[
+            _buildActionButton(
+              icon: Icons.add_circle_outline,
+              label: 'Create Event',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const CreateEventScreen(),
+                  ),
+                );
+              },
+            ),
+            _buildActionButton(
+              icon: Icons.event_note,
+              label: 'My Events',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const MyEventsScreen(),
+                  ),
+                );
+              },
+            ),
+          ],
           _buildActionButton(
             icon: Icons.edit,
             label: 'Edit Profile',

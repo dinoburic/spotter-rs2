@@ -6,5 +6,6 @@ namespace Spotter.Services
         string GetUsername();
         string GetRole();
         bool IsAdmin();
+        bool IsInRole(string role);
     }
 }

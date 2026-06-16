@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Spotter.Model.Requests;
 using Spotter.Model.Responses;
 using Spotter.Model.SearchObjects;
+using Spotter.Model.Static;
 using Spotter.Services;
 
 namespace Spotter.WebAPI.Controllers
@@ -41,6 +42,7 @@ namespace Spotter.WebAPI.Controllers
         }
 
         [HttpPost("{id}/pay")]
+        [Authorize(Roles = Roles.Admin)]
         public async Task<ActionResult<OrderResponse>> MarkAsPaid(int id)
         {
             var result = await _orderService.MarkAsPaidAsync(id);
@@ -48,6 +50,7 @@ namespace Spotter.WebAPI.Controllers
         }
 
         [HttpPost("{id}/refund")]
+        [Authorize(Roles = Roles.Admin)]
         public async Task<ActionResult<OrderResponse>> Refund(int id)
         {
             var result = await _orderService.RefundAsync(id);

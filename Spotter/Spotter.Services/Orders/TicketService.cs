@@ -5,6 +5,7 @@ using Spotter.Model.Enums;
 using Spotter.Model.Exceptions;
 using Spotter.Model.Responses;
 using Spotter.Model.SearchObjects;
+using Spotter.Model.Static;
 using Spotter.Services.Database;
 using Spotter.Services.StateMachines;
 
@@ -103,8 +104,6 @@ namespace Spotter.Services
         public async Task<TicketResponse> UseTicketAsync(string qrCodePayload)
         {
             _logger.LogInformation("Using ticket with QR payload");
-            if (!_currentUserService.IsAdmin())
-                throw new ClientException("Only organizers or admins can scan tickets.");
 
             var ticket = await _dbContext.Tickets
                 .Include(t => t.User)
@@ -118,10 +117,18 @@ namespace Spotter.Services
                 throw new NotFoundException("Ticket not found.");
             }
 
+            var currentUserId = _currentUserService.GetUserId();
+            var isAdmin = _currentUserService.IsAdmin();
+            var isOrganizer = _currentUserService.IsInRole(Roles.Organizer);
+
+            if (!isAdmin && !(isOrganizer && ticket.OrderItem.Order.Event.OrganizerId == currentUserId))
+                throw new ClientException("Only admins or event organizers can validate tickets.");
+
             if (ticket.OrderItem.Order.Event.StartsAt > DateTime.UtcNow.AddHours(2))
                 throw new ClientException("Event has not started yet.");
 
             _ticketStateMachine.Transition(ticket, TicketStatus.Used);
+            ticket.UsedAt = DateTime.UtcNow;
 
             await _dbContext.SaveChangesAsync();
 

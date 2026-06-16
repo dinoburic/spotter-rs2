@@ -141,8 +141,9 @@ class _VenueListScreenState extends State<VenueListScreen> {
                             message: 'No venues found',
                           )
                         : SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: DataTable(
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: DataTable(
                           columns: const [
                             DataColumn(label: Text('Name')),
                             DataColumn(label: Text('Address')),
@@ -199,6 +200,7 @@ class _VenueListScreenState extends State<VenueListScreen> {
                           }).toList(),
                         ),
                       ),
+                    ),
           ),
           PaginationControls(
             currentPage: provider.currentPage,

@@ -45,7 +45,7 @@ class _TicketListScreenState extends State<TicketListScreen> {
     }
   }
 
-  Future<void> _useTicket(int id) async {
+  Future<void> _useTicket(String qrCodePayload) async {
     final confirmed = await showConfirmDialog(
       context,
       title: 'Use Ticket',
@@ -55,7 +55,7 @@ class _TicketListScreenState extends State<TicketListScreen> {
 
     if (confirmed && mounted) {
       try {
-        await context.read<TicketProvider>().useTicket(id);
+        await context.read<TicketProvider>().useTicket(qrCodePayload);
         _loadData();
       } catch (e) {
         if (mounted) {
@@ -112,8 +112,9 @@ class _TicketListScreenState extends State<TicketListScreen> {
                         message: 'No tickets found',
                       )
                     : SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: DataTable(
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: DataTable(
                           columns: const [
                             DataColumn(label: Text('Event')),
                             DataColumn(label: Text('User')),
@@ -171,7 +172,7 @@ class _TicketListScreenState extends State<TicketListScreen> {
                                         icon: const Icon(Icons.qr_code_scanner),
                                         tooltip: 'Mark as Used',
                                         onPressed: () =>
-                                            _useTicket(ticket.id),
+                                            _useTicket(ticket.qrCodePayload),
                                       )
                                     : const SizedBox.shrink(),
                               ),
@@ -179,6 +180,7 @@ class _TicketListScreenState extends State<TicketListScreen> {
                           }).toList(),
                         ),
                       ),
+                    ),
           ),
           PaginationControls(
             currentPage: provider.currentPage,

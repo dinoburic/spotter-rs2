@@ -33,6 +33,7 @@ class ReviewProvider extends ChangeNotifier {
       final queryParams = <String, dynamic>{
         'page': currentPage,
         'pageSize': pageSize,
+        'includeTotalCount': true,
       };
       if (eventId != null) {
         queryParams['eventId'] = eventId;

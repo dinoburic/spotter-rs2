@@ -14,10 +14,12 @@ namespace Spotter.WebAPI.Controllers
     public class OrderController : ControllerBase
     {
         private readonly IOrderService _orderService;
+        private readonly IStripeService _stripeService;
 
-        public OrderController(IOrderService orderService)
+        public OrderController(IOrderService orderService, IStripeService stripeService)
         {
             _orderService = orderService;
+            _stripeService = stripeService;
         }
 
         [HttpGet]
@@ -53,6 +55,11 @@ namespace Spotter.WebAPI.Controllers
         [Authorize(Roles = Roles.Admin)]
         public async Task<ActionResult<OrderResponse>> Refund(int id)
         {
+            var order = await _orderService.GetByIdAsync(id);
+            if (!string.IsNullOrEmpty(order.StripePaymentIntentId))
+            {
+                await _stripeService.RefundPaymentAsync(order.StripePaymentIntentId);
+            }
             var result = await _orderService.RefundAsync(id);
             return Ok(result);
         }

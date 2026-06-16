@@ -38,10 +38,13 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   Future<void> _loadEvent() async {
     final eventProvider = context.read<EventProvider>();
     final event = await eventProvider.getEventById(widget.eventId);
+    if (!mounted) return;
     if (event != null) {
       await eventProvider.loadTicketTypes(widget.eventId);
+      if (!mounted) return;
       await context.read<ReviewProvider>().loadReviewsForEvent(widget.eventId);
     }
+    if (!mounted) return;
     setState(() {
       _event = event;
       _isLoading = false;
@@ -111,13 +114,13 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                       fit: BoxFit.cover,
                       errorWidget: (_, __, ___) => Container(
                         color: AppColors.fromHex(event.categoryColorHex)
-                            .withOpacity(0.3),
+                            .withValues(alpha:0.3),
                         child: const Icon(Icons.event, size: 64),
                       ),
                     )
                   : Container(
                       color: AppColors.fromHex(event.categoryColorHex)
-                          .withOpacity(0.3),
+                          .withValues(alpha:0.3),
                       child: const Center(
                         child: Icon(Icons.event, size: 64),
                       ),

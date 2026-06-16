@@ -150,7 +150,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       margin: const EdgeInsets.only(bottom: 8),
       color: notification.isRead
           ? null
-          : AppColors.primary.withOpacity(0.05),
+          : AppColors.primary.withValues(alpha:0.05),
       child: InkWell(
         onTap: () => _onNotificationTap(notification, provider),
         borderRadius: BorderRadius.circular(12),
@@ -162,7 +162,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
+                  color: AppColors.primary.withValues(alpha:0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(

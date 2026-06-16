@@ -10,6 +10,8 @@ import '../orders/order_history_screen.dart';
 import '../reservations/my_reservations_screen.dart';
 import 'edit_profile_screen.dart';
 import 'change_password_screen.dart';
+import 'edit_interests_screen.dart';
+import '../friends/find_friends_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -77,7 +79,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           CircleAvatar(
             radius: 50,
-            backgroundColor: AppColors.primary.withOpacity(0.2),
+            backgroundColor: AppColors.primary.withValues(alpha:0.2),
             child: profile != null
                 ? Text(
                     '${profile.firstName[0]}${profile.lastName[0]}',
@@ -115,7 +117,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
           const SizedBox(height: 24),
           Card(
-            color: AppColors.primary.withOpacity(0.1),
+            color: AppColors.primary.withValues(alpha:0.1),
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Row(
@@ -175,10 +177,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       vertical: 8,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
+                      color: AppColors.primary.withValues(alpha:0.1),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: AppColors.primary.withOpacity(0.3),
+                        color: AppColors.primary.withValues(alpha:0.3),
                       ),
                     ),
                     child: Column(
@@ -241,6 +243,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 context,
                 MaterialPageRoute(
                   builder: (_) => const EditProfileScreen(),
+                ),
+              );
+            },
+          ),
+          _buildActionButton(
+            icon: Icons.people,
+            label: 'Find Friends',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const FindFriendsScreen(),
+                ),
+              );
+            },
+          ),
+          _buildActionButton(
+            icon: Icons.interests,
+            label: 'My Interests',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const EditInterestsScreen(),
                 ),
               );
             },

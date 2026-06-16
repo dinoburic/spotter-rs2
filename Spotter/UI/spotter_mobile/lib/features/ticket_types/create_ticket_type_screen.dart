@@ -257,6 +257,7 @@ class _CreateTicketTypeScreenState extends State<CreateTicketTypeScreen> {
               ),
               const SizedBox(height: 12),
 
+
               SizedBox(
                 height: 48,
                 child: OutlinedButton(

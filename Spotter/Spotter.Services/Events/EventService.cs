@@ -92,6 +92,40 @@ namespace Spotter.Services
             return query;
         }
 
+        public override async Task<EventResponse> GetByIdAsync(int id)
+        {
+            var query = _dbContext.Events
+                .Include(e => e.Category)
+                .Include(e => e.Venue).ThenInclude(v => v.City)
+                .Include(e => e.Organizer)
+                .Include(e => e.TicketTypes)
+                .AsQueryable();
+
+            var isAdmin = _currentUserService.IsAdmin();
+            var isOrganizer = _currentUserService.IsInRole(Roles.Organizer);
+            var currentUserId = _currentUserService.GetUserId();
+
+            if (isAdmin)
+            {
+                query = query.Where(e => e.Id == id);
+            }
+            else if (isOrganizer)
+            {
+                query = query.Where(e => e.Id == id && !e.IsDeleted &&
+                    (e.Status == EventStatus.Active || e.OrganizerId == currentUserId));
+            }
+            else
+            {
+                query = query.Where(e => e.Id == id && !e.IsDeleted && e.Status == EventStatus.Active);
+            }
+
+            var entity = await query.FirstOrDefaultAsync();
+            if (entity == null)
+                throw new NotFoundException($"Event {id} not found.");
+
+            return _mapper.Map<EventResponse>(entity);
+        }
+
         public override async Task<EventResponse> InsertAsync(EventInsertRequest request)
         {
             var organizerId = _currentUserService.GetUserId();

@@ -191,5 +191,42 @@ namespace Spotter.Services
             await _dbContext.SaveChangesAsync();
             _logger.LogInformation("Password changed successfully for user {UserId}", userId);
         }
+
+        public async Task<List<UserInterestResponse>> GetInterestsAsync(int userId)
+        {
+            var interests = await _dbContext.UserInterests
+                .Include(ui => ui.Category)
+                .Where(ui => ui.UserId == userId)
+                .ToListAsync();
+
+            return interests.Select(ui => new UserInterestResponse
+            {
+                CategoryId = ui.CategoryId,
+                CategoryName = ui.Category?.Name ?? string.Empty,
+                ColorHex = ui.Category?.ColorHex ?? string.Empty,
+            }).ToList();
+        }
+
+        public async Task UpdateInterestsAsync(int userId, UpdateInterestsRequest request)
+        {
+            _logger.LogInformation("Updating interests for user {UserId}", userId);
+
+            var existing = await _dbContext.UserInterests
+                .Where(ui => ui.UserId == userId)
+                .ToListAsync();
+
+            _dbContext.UserInterests.RemoveRange(existing);
+
+            var newInterests = request.CategoryIds.Select(categoryId => new UserInterest
+            {
+                UserId = userId,
+                CategoryId = categoryId,
+                CreatedAt = DateTime.UtcNow,
+            }).ToList();
+
+            _dbContext.UserInterests.AddRange(newInterests);
+            await _dbContext.SaveChangesAsync();
+            _logger.LogInformation("Updated {Count} interests for user {UserId}", newInterests.Count, userId);
+        }
     }
 }

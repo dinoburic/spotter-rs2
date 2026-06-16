@@ -12,5 +12,6 @@ namespace Spotter.Services
         Task<OrderResponse> MarkAsPaidAsync(int id);
         Task<OrderResponse> RefundAsync(int id);
         Task CancelAsync(int id);
+        Task CancelBySystemAsync(int orderId);
     }
 }

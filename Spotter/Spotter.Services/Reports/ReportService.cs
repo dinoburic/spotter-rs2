@@ -55,9 +55,9 @@ namespace Spotter.Services
             return response;
         }
 
-        public async Task<GuestListResponse> GetGuestListAsync(DateTime? from, DateTime? to, int? categoryId)
+        public async Task<GuestListResponse> GetGuestListAsync(DateTime? from, DateTime? to, int? categoryId, int? eventId)
         {
-            _logger.LogInformation("Generating guest list from {From} to {To}, category {CategoryId}", from, to, categoryId);
+            _logger.LogInformation("Generating guest list from {From} to {To}, category {CategoryId}, event {EventId}", from, to, categoryId, eventId);
 
             var query = _dbContext.Tickets
                 .Include(t => t.User)
@@ -75,6 +75,8 @@ namespace Spotter.Services
                 query = query.Where(t => t.OrderItem.Order!.CreatedAt <= to.Value);
             if (categoryId.HasValue)
                 query = query.Where(t => t.OrderItem.Order!.Event != null && t.OrderItem.Order.Event.CategoryId == categoryId.Value);
+            if (eventId.HasValue)
+                query = query.Where(t => t.OrderItem.Order!.EventId == eventId.Value);
 
             var tickets = await query.ToListAsync();
 

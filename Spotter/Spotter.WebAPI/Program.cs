@@ -17,6 +17,8 @@ using Spotter.Services.Validators;
 using Spotter.WebAPI.Filters;
 using System.Text;
 
+DotNetEnv.Env.TraversePath().Load();
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers(
@@ -150,6 +152,7 @@ builder.Services.AddSingleton<IRabbitMqPublisher, RabbitMqPublisher>();
 builder.Services.AddScoped<IRecommendationService, RecommendationService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddHostedService<RecommendationTrainingService>();
+builder.Services.AddHostedService<PendingOrderExpirationService>();
 
 builder.Services.AddScoped<EventStateMachine>();
 builder.Services.AddScoped<OrderStateMachine>();

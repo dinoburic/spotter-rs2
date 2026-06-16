@@ -50,7 +50,7 @@ class EventCard extends StatelessWidget {
                           ),
                           errorWidget: (_, __, ___) => Container(
                             color: AppColors.fromHex(event.categoryColorHex)
-                                .withOpacity(0.2),
+                                .withValues(alpha:0.2),
                             child: Icon(
                               Icons.event,
                               size: 48,
@@ -60,7 +60,7 @@ class EventCard extends StatelessWidget {
                         )
                       : Container(
                           color: AppColors.fromHex(event.categoryColorHex)
-                              .withOpacity(0.2),
+                              .withValues(alpha:0.2),
                           child: Center(
                             child: Icon(
                               Icons.event,
@@ -101,7 +101,7 @@ class EventCard extends StatelessWidget {
                       color: isFavorite ? AppColors.error : Colors.white,
                     ),
                     style: IconButton.styleFrom(
-                      backgroundColor: Colors.black.withOpacity(0.3),
+                      backgroundColor: Colors.black.withValues(alpha:0.3),
                     ),
                     onPressed: () {
                       favoriteProvider.toggleFavorite(event.id);

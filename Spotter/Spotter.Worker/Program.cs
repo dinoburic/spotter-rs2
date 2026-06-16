@@ -4,6 +4,8 @@ using Spotter.Worker.Data;
 using Spotter.Worker.RabbitMq;
 using Spotter.Worker.Services;
 
+DotNetEnv.Env.TraversePath().Load();
+
 var host = Host.CreateDefaultBuilder(args)
     .ConfigureServices((context, services) =>
     {

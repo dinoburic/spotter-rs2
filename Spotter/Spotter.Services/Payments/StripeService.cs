@@ -143,12 +143,26 @@ namespace Spotter.Services
                 var order = await _dbContext.Orders.FirstOrDefaultAsync(o => o.Id == orderId);
                 if (order != null && order.Status == OrderStatus.Pending)
                 {
-                    await _orderService.CancelAsync(orderId);
-                    _logger.LogInformation("Order {OrderId} cancelled", orderId);
+                    await _orderService.CancelBySystemAsync(orderId);
+                    _logger.LogInformation("Order {OrderId} cancelled via webhook", orderId);
                 }
             }
         }
     }
 }
+
+        public async Task RefundPaymentAsync(string paymentIntentId)
+        {
+            _logger.LogInformation("Creating Stripe refund for PaymentIntent {PaymentIntentId}", paymentIntentId);
+
+            var refundService = new RefundService();
+            var refundOptions = new RefundCreateOptions
+            {
+                PaymentIntent = paymentIntentId
+            };
+
+            await refundService.CreateAsync(refundOptions);
+            _logger.LogInformation("Stripe refund created for PaymentIntent {PaymentIntentId}", paymentIntentId);
+        }
     }
 }

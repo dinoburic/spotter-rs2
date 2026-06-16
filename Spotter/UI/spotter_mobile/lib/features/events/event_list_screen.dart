@@ -112,6 +112,7 @@ class _EventListScreenState extends State<EventListScreen> {
           child: RefreshIndicator(
             onRefresh: () async {
               await eventProvider.loadEvents(refresh: true);
+              if (!mounted) return;
               context.read<RecommendationProvider>().loadRecommendations();
             },
             child: eventProvider.items.isEmpty && !eventProvider.isLoading
@@ -273,7 +274,7 @@ class _RecommendationCard extends StatelessWidget {
                   errorWidget: (_, __, ___) => Container(
                     height: 110,
                     color: AppColors.fromHex(recommendation.categoryColorHex)
-                        .withOpacity(0.3),
+                        .withValues(alpha:0.3),
                     child: const Icon(Icons.event),
                   ),
                 ),

@@ -228,5 +228,176 @@ namespace Spotter.Services
             _dbContext.Friendships.Remove(friendship);
             await _dbContext.SaveChangesAsync();
         }
+
+        public async Task<PageResult<UserSuggestionResponse>> GetFriendsAsync(int page = 1, int pageSize = 20)
+        {
+            var userId = _currentUserService.GetUserId();
+            pageSize = Math.Min(pageSize, 100);
+
+            var query = _dbContext.Friendships
+                .Include(f => f.Requester).ThenInclude(u => u.City)
+                .Include(f => f.Addressee).ThenInclude(u => u.City)
+                .Where(f => f.Status == FriendshipStatus.Accepted &&
+                           (f.RequesterId == userId || f.AddresseeId == userId));
+
+            var totalCount = await query.CountAsync();
+
+            var friendships = await query
+                .OrderByDescending(f => f.RespondedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            var items = friendships.Select(f =>
+            {
+                var friend = f.RequesterId == userId ? f.Addressee : f.Requester;
+                return new UserSuggestionResponse
+                {
+                    UserId = friend.Id,
+                    FullName = $"{friend.FirstName} {friend.LastName}",
+                    Username = friend.Username,
+                    CityName = friend.City?.Name,
+                    MutualFriendsCount = 0
+                };
+            }).ToList();
+
+            return new PageResult<UserSuggestionResponse>
+            {
+                Items = items,
+                TotalCount = totalCount
+            };
+        }
+
+        public async Task<PageResult<FriendshipResponse>> GetPendingRequestsAsync(int page = 1, int pageSize = 20)
+        {
+            var userId = _currentUserService.GetUserId();
+            pageSize = Math.Min(pageSize, 100);
+
+            var query = _dbContext.Friendships
+                .Include(f => f.Requester)
+                .Include(f => f.Addressee)
+                .Where(f => f.Status == FriendshipStatus.Pending && f.AddresseeId == userId);
+
+            var totalCount = await query.CountAsync();
+
+            var friendships = await query
+                .OrderByDescending(f => f.RequestedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            return new PageResult<FriendshipResponse>
+            {
+                Items = friendships.Select(f => _mapper.Map<FriendshipResponse>(f)).ToList(),
+                TotalCount = totalCount
+            };
+        }
+
+        public async Task<PageResult<UserSuggestionResponse>> GetSuggestionsAsync(int page = 1, int pageSize = 10)
+        {
+            var userId = _currentUserService.GetUserId();
+            pageSize = Math.Min(pageSize, 100);
+
+            var currentUser = await _dbContext.Users
+                .Include(u => u.City)
+                .FirstOrDefaultAsync(u => u.Id == userId);
+
+            var existingFriendshipUserIds = await _dbContext.Friendships
+                .Where(f => f.RequesterId == userId || f.AddresseeId == userId)
+                .Select(f => f.RequesterId == userId ? f.AddresseeId : f.RequesterId)
+                .ToListAsync();
+
+            existingFriendshipUserIds.Add(userId);
+
+            var myFriendIds = await _dbContext.Friendships
+                .Where(f => f.Status == FriendshipStatus.Accepted &&
+                           (f.RequesterId == userId || f.AddresseeId == userId))
+                .Select(f => f.RequesterId == userId ? f.AddresseeId : f.RequesterId)
+                .ToListAsync();
+
+            var query = _dbContext.Users
+                .Include(u => u.City)
+                .Where(u => !u.IsDeleted && !existingFriendshipUserIds.Contains(u.Id));
+
+            if (currentUser?.CityId != null)
+            {
+                query = query.OrderByDescending(u => u.CityId == currentUser.CityId);
+            }
+
+            var totalCount = await query.CountAsync();
+
+            var users = await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            var suggestions = new List<UserSuggestionResponse>();
+            foreach (var user in users)
+            {
+                var mutualCount = await _dbContext.Friendships
+                    .Where(f => f.Status == FriendshipStatus.Accepted &&
+                               (f.RequesterId == user.Id || f.AddresseeId == user.Id))
+                    .CountAsync(f => myFriendIds.Contains(f.RequesterId == user.Id ? f.AddresseeId : f.RequesterId));
+
+                suggestions.Add(new UserSuggestionResponse
+                {
+                    UserId = user.Id,
+                    FullName = $"{user.FirstName} {user.LastName}",
+                    Username = user.Username,
+                    CityName = user.City?.Name,
+                    MutualFriendsCount = mutualCount
+                });
+            }
+
+            return new PageResult<UserSuggestionResponse>
+            {
+                Items = suggestions.OrderByDescending(s => s.MutualFriendsCount).ToList(),
+                TotalCount = totalCount
+            };
+        }
+
+        public async Task<PageResult<UserSuggestionResponse>> SearchUsersAsync(string query, int page = 1, int pageSize = 20)
+        {
+            var userId = _currentUserService.GetUserId();
+            pageSize = Math.Min(pageSize, 100);
+
+            var existingFriendshipUserIds = await _dbContext.Friendships
+                .Where(f => f.RequesterId == userId || f.AddresseeId == userId)
+                .Select(f => f.RequesterId == userId ? f.AddresseeId : f.RequesterId)
+                .ToListAsync();
+
+            existingFriendshipUserIds.Add(userId);
+
+            var searchQuery = query.ToLower();
+            var usersQuery = _dbContext.Users
+                .Include(u => u.City)
+                .Where(u => !u.IsDeleted && !existingFriendshipUserIds.Contains(u.Id) &&
+                           (u.FirstName.ToLower().Contains(searchQuery) ||
+                            u.LastName.ToLower().Contains(searchQuery) ||
+                            u.Username.ToLower().Contains(searchQuery)));
+
+            var totalCount = await usersQuery.CountAsync();
+
+            var users = await usersQuery
+                .OrderBy(u => u.Username)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            var items = users.Select(u => new UserSuggestionResponse
+            {
+                UserId = u.Id,
+                FullName = $"{u.FirstName} {u.LastName}",
+                Username = u.Username,
+                CityName = u.City?.Name,
+                MutualFriendsCount = 0
+            }).ToList();
+
+            return new PageResult<UserSuggestionResponse>
+            {
+                Items = items,
+                TotalCount = totalCount
+            };
+        }
     }
 }

@@ -80,6 +80,8 @@ namespace Spotter.Services
         public async Task<UserLoginResponse> LoginWithRefreshTokenAsync(string refreshToken)
         {
             var storedToken = await _refreshTokenService.GetStoredTokenAsync(refreshToken);
+            if (storedToken == null)
+                throw new ClientException("Invalid or expired refresh token.");
 
             var user = await _userService.GetWithRoleByIdAsync(storedToken.UserId);
             if (user == null)

@@ -4,8 +4,10 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/base_provider.dart';
+import '../../core/providers/profile_provider.dart';
 import '../../core/models/register_request.dart';
 import '../../core/models/city_response.dart';
+import '../../core/models/category_response.dart';
 import '../../core/models/page_result.dart';
 import '../home/home_screen.dart';
 
@@ -27,6 +29,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _phoneController = TextEditingController();
 
   List<CityResponse> _cities = [];
+  List<CategoryResponse> _categories = [];
+  List<int> _selectedInterests = [];
   int? _selectedCityId;
   bool _isLoadingCities = true;
 
@@ -43,6 +47,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadCities();
+      _loadCategories();
     });
   }
 
@@ -69,13 +74,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
           (item) => CityResponse.fromJson(item),
         ),
       );
+      if (!mounted) return;
       setState(() {
         _cities = result.items;
         _isLoadingCities = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isLoadingCities = false);
     }
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      final baseProvider = BaseProvider();
+      final result = await baseProvider.get<PageResult<CategoryResponse>>(
+        ApiConstants.categories,
+        queryParameters: {'page': 1, 'pageSize': 100},
+        fromJson: (json) => PageResult.fromJson(
+          json,
+          (item) => CategoryResponse.fromJson(item),
+        ),
+      );
+      if (!mounted) return;
+      setState(() {
+        _categories = result.items;
+      });
+    } catch (_) {}
   }
 
   bool _validate() {
@@ -149,7 +174,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     await auth.register(request);
 
-    if (mounted && auth.isLoggedIn) {
+    if (!mounted) return;
+    if (auth.isLoggedIn) {
+      if (_selectedInterests.isNotEmpty) {
+        await context.read<ProfileProvider>().updateInterests(_selectedInterests);
+      }
+      if (!mounted) return;
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const HomeScreen()),
@@ -265,7 +295,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   controller: _phoneController,
                   decoration: const InputDecoration(
                     labelText: 'Phone Number (optional)',
-                    labelStyle: const TextStyle(fontSize: 10),
+                    labelStyle: TextStyle(fontSize: 10),
                     prefixIcon: Icon(Icons.phone_outlined),
                   ),
                   keyboardType: TextInputType.phone,
@@ -299,7 +329,36 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           });
                         },
                       ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 24),
+                if (_categories.isNotEmpty) ...[
+                  const Text(
+                    'Select your interests (optional):',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: _categories.map((cat) {
+                      final isSelected = _selectedInterests.contains(cat.id);
+                      return FilterChip(
+                        label: Text(cat.name, style: const TextStyle(fontSize: 12)),
+                        selected: isSelected,
+                        selectedColor: AppColors.fromHex(cat.colorHex).withValues(alpha: 0.3),
+                        onSelected: (val) {
+                          setState(() {
+                            if (val) {
+                              _selectedInterests.add(cat.id);
+                            } else {
+                              _selectedInterests.remove(cat.id);
+                            }
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 SizedBox(
                   height: 60,
                   child: ElevatedButton(

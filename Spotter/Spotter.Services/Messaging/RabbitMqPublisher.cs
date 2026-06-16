@@ -1,4 +1,5 @@
 using System.Text;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using RabbitMQ.Client;
@@ -15,13 +16,13 @@ namespace Spotter.Services
         private IConnection? _connection;
         private readonly SemaphoreSlim _connectionLock = new(1, 1);
 
-        public RabbitMqPublisher(ILogger<RabbitMqPublisher> logger)
+        public RabbitMqPublisher(IConfiguration configuration, ILogger<RabbitMqPublisher> logger)
         {
             _logger = logger;
-            _host = Environment.GetEnvironmentVariable("RABBITMQ_HOST") ?? "localhost";
-            _port = int.Parse(Environment.GetEnvironmentVariable("RABBITMQ_PORT") ?? "5672");
-            _username = Environment.GetEnvironmentVariable("RABBITMQ_USERNAME") ?? "guest";
-            _password = Environment.GetEnvironmentVariable("RABBITMQ_PASSWORD") ?? "guest";
+            _host = configuration["RabbitMQ__Host"] ?? configuration["RabbitMQ:Host"] ?? "localhost";
+            _port = int.Parse(configuration["RabbitMQ__Port"] ?? configuration["RabbitMQ:Port"] ?? "5672");
+            _username = configuration["RabbitMQ__Username"] ?? configuration["RabbitMQ:Username"] ?? "guest";
+            _password = configuration["RabbitMQ__Password"] ?? configuration["RabbitMQ:Password"] ?? "guest";
         }
 
         private async Task<IConnection> GetConnectionAsync()

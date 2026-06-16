@@ -8,7 +8,7 @@ namespace Spotter.WebAPI.Controllers
 {
     [ApiController]
     [Route("api/access")]
-    [AllowAnonymous]
+    
     public class AccessController : ControllerBase
     {
         private readonly IAccessService _accessService;
@@ -18,6 +18,7 @@ namespace Spotter.WebAPI.Controllers
             _accessService = accessService;
         }
 
+        [AllowAnonymous]
         [HttpPost("login")]
         public async Task<ActionResult<UserLoginResponse>> Login([FromBody] UserLoginRequest request)
         {
@@ -32,6 +33,8 @@ namespace Spotter.WebAPI.Controllers
             return Ok(result);
         }
 
+
+        [AllowAnonymous]
         [HttpPost("logout")]
         public async Task<IActionResult> Logout([FromBody] RefreshAccessTokenRequest request)
         {
@@ -40,6 +43,7 @@ namespace Spotter.WebAPI.Controllers
             return NoContent();
         }
 
+        [AllowAnonymous]
         [HttpPost("register")]
         public async Task<ActionResult<UserLoginResponse>> Register([FromBody] RegisterRequest request)
         {

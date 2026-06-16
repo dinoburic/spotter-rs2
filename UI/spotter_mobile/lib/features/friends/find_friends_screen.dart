@@ -60,9 +60,9 @@ class _FindFriendsScreenState extends State<FindFriendsScreen>
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('Suggestions'),
+                  const Text('Suggestions',style: TextStyle(fontSize: 8),),
                   if (provider.suggestions.isNotEmpty) ...[
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 3),
                     _buildBadge(provider.suggestions.length),
                   ],
                 ],
@@ -72,7 +72,7 @@ class _FindFriendsScreenState extends State<FindFriendsScreen>
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('Requests'),
+                  const Text('Requests',style: TextStyle(fontSize: 8),),
                   if (provider.pendingRequests.isNotEmpty) ...[
                     const SizedBox(width: 4),
                     _buildBadge(provider.pendingRequests.length),
@@ -84,7 +84,7 @@ class _FindFriendsScreenState extends State<FindFriendsScreen>
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('Friends'),
+                  const Text('Friends',style: TextStyle(fontSize: 8),),
                   if (provider.friends.isNotEmpty) ...[
                     const SizedBox(width: 4),
                     _buildBadge(provider.friends.length),

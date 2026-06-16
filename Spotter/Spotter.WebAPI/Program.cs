@@ -148,6 +148,7 @@ builder.Services.AddScoped<IWaitlistService, WaitlistService>();
 builder.Services.AddScoped<IStripeService, StripeService>();
 builder.Services.AddSingleton<IRabbitMqPublisher, RabbitMqPublisher>();
 builder.Services.AddScoped<IRecommendationService, RecommendationService>();
+builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddHostedService<RecommendationTrainingService>();
 
 builder.Services.AddScoped<EventStateMachine>();

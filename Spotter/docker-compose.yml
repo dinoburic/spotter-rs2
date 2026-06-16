@@ -1,7 +1,7 @@
 services:
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: spotter-main
+    container_name: spotter-sqlserver
     env_file: .env
     environment:
       ACCEPT_EULA: "Y"
@@ -10,6 +10,14 @@ services:
       - "1435:1433"
     volumes:
       - sqlserver_data:/var/opt/mssql
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$${SA_PASSWORD}" -C -Q "SELECT 1" || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - spotter-network
 
   rabbitmq:
     image: rabbitmq:3.13-management
@@ -24,11 +32,42 @@ services:
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
-      test: ["CMD", "rabbitmqctl", "status"]
-      interval: 15s
-      timeout: 10s
-      retries: 5
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
       start_period: 30s
+    networks:
+      - spotter-network
+
+  api:
+    build:
+      context: .
+      dockerfile: Spotter.WebAPI/Dockerfile
+    container_name: spotter-api
+    ports:
+      - "5126:5126"
+    env_file: .env
+    environment:
+      ASPNETCORE_URLS: http://+:5126
+      ConnectionStrings__DefaultConnection: Server=sqlserver,1433;Database=230006;User Id=sa;Password=${SPOTTER_SA_PASSWORD};TrustServerCertificate=True;
+      Jwt__Secret: ${JWT_SECRET}
+      Jwt__Issuer: SpotterAPI
+      Jwt__Audience: SpotterClient
+      Stripe__SecretKey: ${STRIPE_SECRET_KEY}
+      Stripe__PublishableKey: ${STRIPE_PUBLISHABLE_KEY}
+      Stripe__WebhookSecret: ${STRIPE_WEBHOOK_SECRET}
+      RabbitMQ__Host: rabbitmq
+      RabbitMQ__Port: "5672"
+      RabbitMQ__Username: ${RABBITMQ_USERNAME}
+      RabbitMQ__Password: ${RABBITMQ_PASSWORD}
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - spotter-network
 
   worker:
     build:
@@ -37,9 +76,9 @@ services:
     container_name: spotter-worker
     env_file: .env
     environment:
-      SPOTTER_CONNECTION_STRING: "Server=sqlserver,1433;Database=230006;User Id=sa;Password=qweasd123!;TrustServerCertificate=True;"
+      SPOTTER_CONNECTION_STRING: Server=sqlserver,1433;Database=230006;User Id=sa;Password=${SPOTTER_SA_PASSWORD};TrustServerCertificate=True;
       RABBITMQ_HOST: rabbitmq
-      RABBITMQ_PORT: 5672
+      RABBITMQ_PORT: "5672"
       RABBITMQ_USERNAME: ${RABBITMQ_USERNAME}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY}
@@ -50,9 +89,15 @@ services:
       SMTP_USE_SSL: ${SMTP_USE_SSL}
     depends_on:
       sqlserver:
-        condition: service_started
+        condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    networks:
+      - spotter-network
+
+networks:
+  spotter-network:
+    driver: bridge
 
 volumes:
   sqlserver_data:

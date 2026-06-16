@@ -175,6 +175,8 @@ namespace Spotter.Services
                 {
                     var ticketType = ticketTypesDict[item.TicketTypeId];
 
+                    ticketType.SoldQuantity += item.Quantity;
+
                     var orderItem = new OrderItem
                     {
                         OrderId = order.Id,
@@ -243,8 +245,6 @@ namespace Spotter.Services
                 var ticketCount = 0;
                 foreach (var orderItem in order.OrderItems)
                 {
-                    orderItem.TicketType.SoldQuantity += orderItem.Quantity;
-
                     for (int i = 0; i < orderItem.Quantity; i++)
                     {
                         var ticket = new Ticket
@@ -347,7 +347,9 @@ namespace Spotter.Services
         public async Task CancelAsync(int id)
         {
             _logger.LogInformation("Cancelling order {OrderId}", id);
-            var order = await _dbContext.Orders.FirstOrDefaultAsync(o => o.Id == id);
+            var order = await _dbContext.Orders
+                .Include(o => o.OrderItems)
+                .FirstOrDefaultAsync(o => o.Id == id);
 
             if (order == null)
             {
@@ -365,6 +367,18 @@ namespace Spotter.Services
             {
                 _logger.LogInformation("Order {OrderId} already cancelled, skipping", id);
                 return;
+            }
+
+            if (order.Status == OrderStatus.Pending)
+            {
+                foreach (var item in order.OrderItems)
+                {
+                    var ticketType = await _dbContext.TicketTypes.FindAsync(item.TicketTypeId);
+                    if (ticketType != null)
+                    {
+                        ticketType.SoldQuantity = Math.Max(0, ticketType.SoldQuantity - item.Quantity);
+                    }
+                }
             }
 
             _orderStateMachine.Transition(order, OrderStatus.Cancelled);

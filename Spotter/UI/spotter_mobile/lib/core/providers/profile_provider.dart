@@ -15,6 +15,7 @@ class ProfileProvider extends ChangeNotifier {
   List<UserBadgeResponse> badges = [];
   PointsBalanceResponse? pointsBalance;
   List<CityResponse> cities = [];
+  List<int> selectedInterestIds = [];
   bool isLoading = false;
   String? error;
 
@@ -135,5 +136,33 @@ class ProfileProvider extends ChangeNotifier {
   void clearError() {
     error = null;
     notifyListeners();
+  }
+
+  Future<void> loadInterests() async {
+    try {
+      final result = await _baseProvider.get<List<dynamic>>(
+        ApiConstants.interests,
+        fromJson: (json) => json as List<dynamic>,
+      );
+      selectedInterestIds = result.map((e) => e['categoryId'] as int).toList();
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<bool> updateInterests(List<int> categoryIds) async {
+    try {
+      await _baseProvider.put<void>(
+        ApiConstants.interests,
+        data: {'categoryIds': categoryIds},
+        fromJson: (_) {},
+      );
+      selectedInterestIds = categoryIds;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      error = e.toString().replaceAll('Exception: ', '');
+      notifyListeners();
+      return false;
+    }
   }
 }

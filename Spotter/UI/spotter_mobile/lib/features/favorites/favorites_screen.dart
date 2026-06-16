@@ -116,13 +116,13 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                             fit: BoxFit.cover,
                             errorWidget: (_, __, ___) => Container(
                               color: AppColors.fromHex(favorite.categoryColorHex)
-                                  .withOpacity(0.2),
+                                  .withValues(alpha:0.2),
                               child: const Icon(Icons.event),
                             ),
                           )
                         : Container(
                             color: AppColors.fromHex(favorite.categoryColorHex)
-                                .withOpacity(0.2),
+                                .withValues(alpha:0.2),
                             child: Icon(
                               Icons.event,
                               color: AppColors.fromHex(favorite.categoryColorHex),

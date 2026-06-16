@@ -25,4 +25,6 @@ class ApiConstants {
   static const String recommendations = '/api/recommendations';
   static const String users = '/api/Users';
   static const String payments = '/api/payments';
+  static const String interests = '/api/users/me/interests';
+  static const String friendships = '/api/friendships';
 }

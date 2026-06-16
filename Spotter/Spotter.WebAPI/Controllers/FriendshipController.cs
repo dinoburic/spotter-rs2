@@ -25,6 +25,37 @@ namespace Spotter.WebAPI.Controllers
             return Ok(result);
         }
 
+        [HttpGet("friends")]
+        public async Task<ActionResult<PageResult<UserSuggestionResponse>>> GetFriends([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        {
+            var result = await _friendshipService.GetFriendsAsync(page, pageSize);
+            return Ok(result);
+        }
+
+        [HttpGet("pending")]
+        public async Task<ActionResult<PageResult<FriendshipResponse>>> GetPendingRequests([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        {
+            var result = await _friendshipService.GetPendingRequestsAsync(page, pageSize);
+            return Ok(result);
+        }
+
+        [HttpGet("suggestions")]
+        public async Task<ActionResult<PageResult<UserSuggestionResponse>>> GetSuggestions([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        {
+            var result = await _friendshipService.GetSuggestionsAsync(page, pageSize);
+            return Ok(result);
+        }
+
+        [HttpGet("search")]
+        public async Task<ActionResult<PageResult<UserSuggestionResponse>>> SearchUsers([FromQuery] string query, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        {
+            if (string.IsNullOrWhiteSpace(query))
+                return Ok(new PageResult<UserSuggestionResponse> { Items = new List<UserSuggestionResponse>() });
+
+            var result = await _friendshipService.SearchUsersAsync(query, page, pageSize);
+            return Ok(result);
+        }
+
         [HttpPost("request/{addresseeId}")]
         public async Task<ActionResult<FriendshipResponse>> SendRequest(int addresseeId)
         {

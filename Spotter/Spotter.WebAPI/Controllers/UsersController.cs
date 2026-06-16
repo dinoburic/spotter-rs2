@@ -54,4 +54,20 @@ public class UsersController : BaseCRUDController<UserResponse, UserSearch, User
         await _service.ChangePasswordAsync(userId, request);
         return Ok(new { message = "Password changed successfully." });
     }
+
+    [HttpGet("me/interests")]
+    public async Task<ActionResult<List<UserInterestResponse>>> GetMyInterests()
+    {
+        var userId = _currentUserService.GetUserId();
+        var result = await _service.GetInterestsAsync(userId);
+        return Ok(result);
+    }
+
+    [HttpPut("me/interests")]
+    public async Task<IActionResult> UpdateMyInterests([FromBody] UpdateInterestsRequest request)
+    {
+        var userId = _currentUserService.GetUserId();
+        await _service.UpdateInterestsAsync(userId, request);
+        return Ok();
+    }
 }

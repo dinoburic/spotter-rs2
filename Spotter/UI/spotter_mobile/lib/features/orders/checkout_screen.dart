@@ -275,7 +275,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 if (_pointsBalance > 0) ...[
                   const Divider(height: 32),
                   Card(
-                    color: AppColors.primary.withOpacity(0.1),
+                    color: AppColors.primary.withValues(alpha:0.1),
                     child: SwitchListTile(
                       title: const Text('Use Spotter Points'),
                       subtitle: Text(
@@ -297,7 +297,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               color: Colors.white,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha:0.1),
                   blurRadius: 8,
                   offset: const Offset(0, -2),
                 ),

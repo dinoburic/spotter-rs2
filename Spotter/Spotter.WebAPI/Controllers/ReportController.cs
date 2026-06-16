@@ -32,9 +32,10 @@ namespace Spotter.WebAPI.Controllers
         public async Task<ActionResult<GuestListResponse>> GetGuestList(
             [FromQuery] DateTime? from,
             [FromQuery] DateTime? to,
-            [FromQuery] int? categoryId)
+            [FromQuery] int? categoryId,
+            [FromQuery] int? eventId)
         {
-            var result = await _reportService.GetGuestListAsync(from, to, categoryId);
+            var result = await _reportService.GetGuestListAsync(from, to, categoryId, eventId);
             return Ok(result);
         }
     }

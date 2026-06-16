@@ -17,6 +17,8 @@ using Spotter.Services.Validators;
 using Spotter.WebAPI.Filters;
 using System.Text;
 
+DotNetEnv.Env.TraversePath().Load();
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers(

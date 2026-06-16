@@ -10,6 +10,7 @@ using Spotter.Model.SearchObjects;
 using Spotter.Services.Database;
 using Spotter.Services.StateMachines;
 using System.Text;
+using System.Data;
 
 namespace Spotter.Services
 {
@@ -146,88 +147,120 @@ namespace Spotter.Services
                     if (ticketType == null)
                         throw new NotFoundException($"TicketType {item.TicketTypeId} not found for this event.");
 
-                    var available = ticketType.TotalQuantity - ticketType.SoldQuantity;
-                    if (item.Quantity > available)
-                        throw new ClientException($"Not enough tickets available for {ticketType.Name}. Available: {available}.");
-
                     ticketTypesDict[item.TicketTypeId] = ticketType;
                 }
 
-                await using var transaction = await _dbContext.Database.BeginTransactionAsync();
+                await using var transaction = await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable);
 
-                var subtotal = request.Items.Sum(i => i.Quantity * ticketTypesDict[i.TicketTypeId].Price);
-                var spotterPointsRedeemed = 0;
-                var discountApplied = 0m;
-
-                if (request.SpotterPointsToRedeem > 0)
+                try
                 {
-                    var userBalance = await _dbContext.SpotterPoints
-                        .Where(sp => sp.UserId == userId)
-                        .SumAsync(sp => sp.Delta);
-
-                    var pointsToRedeem = Math.Min(request.SpotterPointsToRedeem, userBalance);
-                    discountApplied = Math.Min(pointsToRedeem * 0.1m, subtotal);
-                    spotterPointsRedeemed = (int)(discountApplied / 0.1m);
-
-                    if (spotterPointsRedeemed > 0)
+                    foreach (var item in request.Items)
                     {
-                        await _spotterPointsService.RedeemAsync(userId, spotterPointsRedeemed, null);
-                        _logger.LogInformation("User {UserId} redeemed {Points} points for {Discount} BAM discount", userId, spotterPointsRedeemed, discountApplied);
+                        var rowsAffected = await _dbContext.Database.ExecuteSqlRawAsync(
+                            @"UPDATE TicketTypes
+                              SET SoldQuantity = SoldQuantity + {0}
+                              WHERE Id = {1}
+                              AND (TotalQuantity - SoldQuantity) >= {0}",
+                            item.Quantity,
+                            item.TicketTypeId);
+
+                        if (rowsAffected == 0)
+                        {
+                            await transaction.RollbackAsync();
+                            var ticketType = ticketTypesDict[item.TicketTypeId];
+                            throw new ClientException($"Not enough tickets available for {ticketType.Name}. Another user may have just purchased the last tickets. Please try again.");
+                        }
                     }
-                }
 
-                var totalAmount = subtotal - discountApplied;
+                    var subtotal = request.Items.Sum(i => i.Quantity * ticketTypesDict[i.TicketTypeId].Price);
+                    var spotterPointsRedeemed = 0;
+                    var discountApplied = 0m;
 
-                var order = new Order
-                {
-                    UserId = userId,
-                    EventId = request.EventId,
-                    Status = OrderStatus.Pending,
-                    CreatedAt = DateTime.UtcNow,
-                    TotalAmount = totalAmount,
-                    SpotterPointsRedeemed = spotterPointsRedeemed,
-                    DiscountApplied = discountApplied
-                };
-
-                _dbContext.Orders.Add(order);
-                await _dbContext.SaveChangesAsync();
-
-                foreach (var item in request.Items)
-                {
-                    var ticketType = ticketTypesDict[item.TicketTypeId];
-
-                    ticketType.SoldQuantity += item.Quantity;
-
-                    var orderItem = new OrderItem
+                    if (request.SpotterPointsToRedeem > 0)
                     {
-                        OrderId = order.Id,
-                        TicketTypeId = item.TicketTypeId,
-                        Quantity = item.Quantity,
-                        UnitPrice = ticketType.Price
+                        var userBalance = await _dbContext.SpotterPoints
+                            .Where(sp => sp.UserId == userId)
+                            .SumAsync(sp => sp.Delta);
+
+                        var pointsToRedeem = Math.Min(request.SpotterPointsToRedeem, userBalance);
+                        discountApplied = Math.Min(pointsToRedeem * 0.1m, subtotal);
+                        spotterPointsRedeemed = (int)(discountApplied / 0.1m);
+
+                        if (spotterPointsRedeemed > 0)
+                        {
+                            _dbContext.SpotterPoints.Add(new SpotterPoints
+                            {
+                                UserId = userId,
+                                Delta = -spotterPointsRedeemed,
+                                Source = PointSource.Redemption,
+                                Description = "Order discount",
+                                CreatedAt = DateTime.UtcNow
+                            });
+                            _logger.LogInformation("User {UserId} redeemed {Points} points for {Discount} BAM discount", userId, spotterPointsRedeemed, discountApplied);
+                        }
+                    }
+
+                    var totalAmount = subtotal - discountApplied;
+
+                    var order = new Order
+                    {
+                        UserId = userId,
+                        EventId = request.EventId,
+                        Status = OrderStatus.Pending,
+                        CreatedAt = DateTime.UtcNow,
+                        TotalAmount = totalAmount,
+                        SpotterPointsRedeemed = spotterPointsRedeemed,
+                        DiscountApplied = discountApplied
                     };
 
-                    _dbContext.OrderItems.Add(orderItem);
+                    _dbContext.Orders.Add(order);
+                    await _dbContext.SaveChangesAsync();
+
+                    foreach (var item in request.Items)
+                    {
+                        var ticketType = ticketTypesDict[item.TicketTypeId];
+
+                        var orderItem = new OrderItem
+                        {
+                            OrderId = order.Id,
+                            TicketTypeId = item.TicketTypeId,
+                            Quantity = item.Quantity,
+                            UnitPrice = ticketType.Price
+                        };
+
+                        _dbContext.OrderItems.Add(orderItem);
+                    }
+
+                    await _dbContext.SaveChangesAsync();
+                    await transaction.CommitAsync();
+
+                    var createdOrder = await _dbContext.Orders
+                        .Include(o => o.User)
+                        .Include(o => o.Event)
+                        .Include(o => o.OrderItems).ThenInclude(oi => oi.TicketType)
+                        .FirstAsync(o => o.Id == order.Id);
+
+                    await _notificationService.CreateAsync(
+                        userId: userId,
+                        title: "Order Created",
+                        body: $"Your order for {eventEntity.Title} has been created. Complete payment to receive your tickets.",
+                        type: NotificationType.OrderCreated,
+                        referenceId: order.Id.ToString()
+                    );
+
+                    _logger.LogInformation("Order {OrderId} created successfully for user {UserId}", order.Id, userId);
+                    return _mapper.Map<OrderResponse>(createdOrder);
                 }
-
-                await _dbContext.SaveChangesAsync();
-                await transaction.CommitAsync();
-
-                var createdOrder = await _dbContext.Orders
-                    .Include(o => o.User)
-                    .Include(o => o.Event)
-                    .Include(o => o.OrderItems).ThenInclude(oi => oi.TicketType)
-                    .FirstAsync(o => o.Id == order.Id);
-
-                await _notificationService.CreateAsync(
-                    userId: userId,
-                    title: "Order Created",
-                    body: $"Your order for {eventEntity.Title} has been created. Complete payment to receive your tickets.",
-                    type: NotificationType.OrderCreated,
-                    referenceId: order.Id.ToString()
-                );
-
-                _logger.LogInformation("Order {OrderId} created successfully for user {UserId}", order.Id, userId);
-                return _mapper.Map<OrderResponse>(createdOrder);
+                catch (ClientException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+                    _logger.LogError(ex, "Order creation failed for user {UserId}", userId);
+                    throw;
+                }
             }
             catch (Exception ex) when (ex is not ClientException and not NotFoundException)
             {

@@ -7,25 +7,24 @@ import '../../features/auth/login_screen.dart';
 
 class BaseProvider {
   final Dio _dio;
-  static bool _isRedirecting = false;
 
   BaseProvider() : _dio = Dio(BaseOptions(baseUrl: ApiConstants.baseUrl)) {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onError: (error, handler) async {
-  if (error.response?.statusCode == 401) {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('accessToken');
-    if (token != null) {
-      await prefs.clear();
-      navigatorKey.currentState?.pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-        (route) => false,
-      );
-    }
-  }
-  handler.next(error);
-},
+          if (error.response?.statusCode == 401) {
+            final prefs = await SharedPreferences.getInstance();
+            final token = prefs.getString('accessToken');
+            if (token != null) {
+              await prefs.clear();
+              navigatorKey.currentState?.pushAndRemoveUntil(
+                MaterialPageRoute(builder: (context) => const LoginScreen()),
+                (route) => false,
+              );
+            }
+          }
+          handler.next(error);
+        },
       ),
     );
   }

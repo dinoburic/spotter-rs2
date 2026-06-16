@@ -56,6 +56,19 @@ namespace Spotter.Services
                             }
                         }
 
+                        if (order.SpotterPointsRedeemed > 0)
+                        {
+                            dbContext.SpotterPoints.Add(new SpotterPoints
+                            {
+                                UserId = order.UserId,
+                                Delta = order.SpotterPointsRedeemed,
+                                Source = PointSource.Redemption,
+                                Description = "Points restored from expired order",
+                                CreatedAt = DateTime.UtcNow
+                            });
+                            _logger.LogInformation("Restored {Points} points for expired order {OrderId}", order.SpotterPointsRedeemed, order.Id);
+                        }
+
                         _logger.LogInformation("Expired pending order {OrderId} cancelled", order.Id);
                     }
 

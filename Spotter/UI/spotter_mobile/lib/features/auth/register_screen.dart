@@ -295,7 +295,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   controller: _phoneController,
                   decoration: const InputDecoration(
                     labelText: 'Phone Number (optional)',
-                    labelStyle: const TextStyle(fontSize: 10),
+                    labelStyle: TextStyle(fontSize: 10),
                     prefixIcon: Icon(Icons.phone_outlined),
                   ),
                   keyboardType: TextInputType.phone,

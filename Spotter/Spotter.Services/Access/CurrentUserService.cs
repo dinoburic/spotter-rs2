@@ -45,5 +45,10 @@ namespace Spotter.Services
         {
             return GetRole() == Roles.Admin;
         }
+
+        public bool IsInRole(string role)
+        {
+            return _httpContextAccessor.HttpContext?.User.IsInRole(role) ?? false;
+        }
     }
 }

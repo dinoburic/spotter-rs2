@@ -119,8 +119,8 @@ class _CityListScreenState extends State<CityListScreen> {
                         message: 'No cities found',
                       )
                     : SingleChildScrollView(
-                        child: SizedBox(
-                          width: double.infinity,
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
                           child: DataTable(
                             columns: const [
                               DataColumn(label: Text('Name')),

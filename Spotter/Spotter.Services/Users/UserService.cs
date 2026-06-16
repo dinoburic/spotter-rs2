@@ -123,9 +123,12 @@ namespace Spotter.Services
                 throw new NotFoundException($"User with id {id} not found.");
             }
 
-            _dbContext.Users.Remove(entity);
+            entity.IsDeleted = true;
+            entity.DeletedAt = DateTime.UtcNow;
+            entity.IsActive = false;
+            _dbContext.Users.Update(entity);
             await _dbContext.SaveChangesAsync();
-            _logger.LogInformation("User {UserId} deleted successfully", id);
+            _logger.LogInformation("User {UserId} soft deleted successfully", id);
         }
 
         public async Task<UserSensitveResponse?> GetByUsernameAsync(string username)

@@ -175,6 +175,8 @@ namespace Spotter.Services
                 {
                     var ticketType = ticketTypesDict[item.TicketTypeId];
 
+                    ticketType.SoldQuantity += item.Quantity;
+
                     var orderItem = new OrderItem
                     {
                         OrderId = order.Id,
@@ -234,52 +236,63 @@ namespace Spotter.Services
                 return _mapper.Map<OrderResponse>(order);
             }
 
-            _orderStateMachine.Transition(order, OrderStatus.Paid);
+            await using var transaction = await _dbContext.Database.BeginTransactionAsync();
 
-            var ticketCount = 0;
-            foreach (var orderItem in order.OrderItems)
+            try
             {
-                orderItem.TicketType.SoldQuantity += orderItem.Quantity;
+                _orderStateMachine.Transition(order, OrderStatus.Paid);
 
-                for (int i = 0; i < orderItem.Quantity; i++)
+                var ticketCount = 0;
+                foreach (var orderItem in order.OrderItems)
                 {
-                    var ticket = new Ticket
+                    for (int i = 0; i < orderItem.Quantity; i++)
                     {
-                        UserId = order.UserId,
-                        OrderItemId = orderItem.Id,
-                        QrCodePayload = GenerateQrPayload(order.Id, orderItem.Id, orderItem.TicketTypeId),
-                        Status = TicketStatus.Active,
-                        IssuedAt = DateTime.UtcNow
-                    };
-                    _dbContext.Tickets.Add(ticket);
-                    ticketCount++;
+                        var ticket = new Ticket
+                        {
+                            UserId = order.UserId,
+                            OrderItemId = orderItem.Id,
+                            QrCodePayload = GenerateQrPayload(order.Id, orderItem.Id, orderItem.TicketTypeId),
+                            Status = TicketStatus.Active,
+                            IssuedAt = DateTime.UtcNow
+                        };
+                        _dbContext.Tickets.Add(ticket);
+                        ticketCount++;
+                    }
                 }
+
+                await _dbContext.SaveChangesAsync();
+
+                var pointsToEarn = Math.Max(1, (int)Math.Floor(order.TotalAmount / 10));
+                await _spotterPointsService.EarnAsync(
+                    order.UserId,
+                    pointsToEarn,
+                    PointSource.Purchase,
+                    order.Id.ToString(),
+                    $"Purchase: {order.Event.Title}"
+                );
+
+                await _badgeService.EvaluateAndAwardAsync(order.UserId);
+
+                await transaction.CommitAsync();
+
+                _logger.LogInformation("Order {OrderId} paid, {Count} tickets issued", order.Id, ticketCount);
+
+                await _notificationService.CreateAsync(
+                    userId: order.UserId,
+                    title: "Payment Successful",
+                    body: $"Your payment was successful! {ticketCount} ticket(s) for {order.Event.Title} have been issued.",
+                    type: NotificationType.OrderPaid,
+                    referenceId: order.Id.ToString()
+                );
+
+                return _mapper.Map<OrderResponse>(order);
             }
-
-            await _dbContext.SaveChangesAsync();
-
-            _logger.LogInformation("Order {OrderId} paid, {Count} tickets issued", order.Id, ticketCount);
-
-            var pointsToEarn = Math.Max(1, (int)Math.Floor(order.TotalAmount / 10));
-            await _spotterPointsService.EarnAsync(
-                order.UserId,
-                pointsToEarn,
-                PointSource.Purchase,
-                order.Id.ToString(),
-                $"Purchase: {order.Event.Title}"
-            );
-
-            await _badgeService.EvaluateAndAwardAsync(order.UserId);
-
-            await _notificationService.CreateAsync(
-                userId: order.UserId,
-                title: "Payment Successful",
-                body: $"Your payment was successful! {ticketCount} ticket(s) for {order.Event.Title} have been issued.",
-                type: NotificationType.OrderPaid,
-                referenceId: order.Id.ToString()
-            );
-
-            return _mapper.Map<OrderResponse>(order);
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogError(ex, "Failed to mark order {OrderId} as paid", id);
+                throw;
+            }
         }
 
         public async Task<OrderResponse> RefundAsync(int id)
@@ -334,18 +347,38 @@ namespace Spotter.Services
         public async Task CancelAsync(int id)
         {
             _logger.LogInformation("Cancelling order {OrderId}", id);
-            var order = await _dbContext.Orders.FirstOrDefaultAsync(o => o.Id == id);
+            var order = await _dbContext.Orders
+                .Include(o => o.OrderItems)
+                .FirstOrDefaultAsync(o => o.Id == id);
 
             if (order == null)
             {
                 _logger.LogWarning("Order {OrderId} not found", id);
-                throw new NotFoundException("Order not found.");
+                throw new NotFoundException($"Order {id} not found.");
             }
+
+            var currentUserId = _currentUserService.GetUserId();
+            var isAdmin = _currentUserService.IsAdmin();
+
+            if (!isAdmin && order.UserId != currentUserId)
+                throw new ClientException("You can only cancel your own orders.");
 
             if (order.Status == OrderStatus.Cancelled)
             {
                 _logger.LogInformation("Order {OrderId} already cancelled, skipping", id);
                 return;
+            }
+
+            if (order.Status == OrderStatus.Pending)
+            {
+                foreach (var item in order.OrderItems)
+                {
+                    var ticketType = await _dbContext.TicketTypes.FindAsync(item.TicketTypeId);
+                    if (ticketType != null)
+                    {
+                        ticketType.SoldQuantity = Math.Max(0, ticketType.SoldQuantity - item.Quantity);
+                    }
+                }
             }
 
             _orderStateMachine.Transition(order, OrderStatus.Cancelled);

@@ -58,6 +58,14 @@ namespace Spotter.Services.Database
                     Description = "Standard user role",
                     IsActive = true,
                     CreatedAt = new DateTime(2026, 4, 26, 0, 0, 0, DateTimeKind.Utc)
+                },
+                new
+                {
+                    Id = 3,
+                    Name = "Organizer",
+                    Description = "Event organizer",
+                    IsActive = true,
+                    CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
                 }
             );
         }
@@ -139,8 +147,8 @@ namespace Spotter.Services.Database
                 {
                     Id = 2,
                     UserId = 2,
-                    RoleId = 2,
-                    DateAssigned = new DateTime(2026, 4, 26, 0, 0, 0, DateTimeKind.Utc)
+                    RoleId = 3,
+                    DateAssigned = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
                 },
                 new
                 {
@@ -237,8 +245,8 @@ namespace Spotter.Services.Database
                     CategoryId = 1,
                     OrganizerId = 2,
                     VenueId = 1,
-                    StartsAt = new DateTime(2026, 5, 15, 20, 0, 0, DateTimeKind.Utc),
-                    EndsAt = new DateTime(2026, 5, 15, 23, 0, 0, DateTimeKind.Utc),
+                    StartsAt = new DateTime(2026, 7, 15, 20, 0, 0, DateTimeKind.Utc),
+                    EndsAt = new DateTime(2026, 7, 15, 23, 0, 0, DateTimeKind.Utc),
                     Status = EventStatus.Active,
                     CoverImageUrl = "https://picsum.photos/seed/1/800/400",
                     TotalCapacity = 2000,
@@ -254,8 +262,8 @@ namespace Spotter.Services.Database
                     CategoryId = 2,
                     OrganizerId = 2,
                     VenueId = 2,
-                    StartsAt = new DateTime(2026, 5, 20, 8, 0, 0, DateTimeKind.Utc),
-                    EndsAt = new DateTime(2026, 5, 20, 14, 0, 0, DateTimeKind.Utc),
+                    StartsAt = new DateTime(2026, 8, 20, 8, 0, 0, DateTimeKind.Utc),
+                    EndsAt = new DateTime(2026, 8, 20, 14, 0, 0, DateTimeKind.Utc),
                     Status = EventStatus.Active,
                     CoverImageUrl = "https://picsum.photos/seed/2/800/400",
                     TotalCapacity = 500,
@@ -271,8 +279,8 @@ namespace Spotter.Services.Database
                     CategoryId = 3,
                     OrganizerId = 2,
                     VenueId = 1,
-                    StartsAt = new DateTime(2026, 6, 1, 19, 0, 0, DateTimeKind.Utc),
-                    EndsAt = new DateTime(2026, 6, 1, 22, 0, 0, DateTimeKind.Utc),
+                    StartsAt = new DateTime(2026, 9, 1, 19, 0, 0, DateTimeKind.Utc),
+                    EndsAt = new DateTime(2026, 9, 1, 22, 0, 0, DateTimeKind.Utc),
                     Status = EventStatus.Draft,
                     CoverImageUrl = "https://picsum.photos/seed/3/800/400",
                     TotalCapacity = 400,
@@ -288,8 +296,8 @@ namespace Spotter.Services.Database
                     CategoryId = 4,
                     OrganizerId = 2,
                     VenueId = 3,
-                    StartsAt = new DateTime(2026, 5, 25, 10, 0, 0, DateTimeKind.Utc),
-                    EndsAt = new DateTime(2026, 5, 25, 17, 0, 0, DateTimeKind.Utc),
+                    StartsAt = new DateTime(2026, 10, 25, 10, 0, 0, DateTimeKind.Utc),
+                    EndsAt = new DateTime(2026, 10, 25, 17, 0, 0, DateTimeKind.Utc),
                     Status = EventStatus.Active,
                     CoverImageUrl = "https://picsum.photos/seed/4/800/400",
                     TotalCapacity = 300,
@@ -305,8 +313,8 @@ namespace Spotter.Services.Database
                     CategoryId = 5,
                     OrganizerId = 2,
                     VenueId = 2,
-                    StartsAt = new DateTime(2026, 5, 30, 12, 0, 0, DateTimeKind.Utc),
-                    EndsAt = new DateTime(2026, 5, 30, 20, 0, 0, DateTimeKind.Utc),
+                    StartsAt = new DateTime(2026, 11, 30, 12, 0, 0, DateTimeKind.Utc),
+                    EndsAt = new DateTime(2026, 11, 30, 20, 0, 0, DateTimeKind.Utc),
                     Status = EventStatus.Active,
                     CoverImageUrl = "https://picsum.photos/seed/5/800/400",
                     TotalCapacity = 1500,
@@ -322,8 +330,8 @@ namespace Spotter.Services.Database
                     CategoryId = 6,
                     OrganizerId = 2,
                     VenueId = 1,
-                    StartsAt = new DateTime(2026, 5, 22, 20, 0, 0, DateTimeKind.Utc),
-                    EndsAt = new DateTime(2026, 5, 22, 23, 0, 0, DateTimeKind.Utc),
+                    StartsAt = new DateTime(2026, 12, 22, 20, 0, 0, DateTimeKind.Utc),
+                    EndsAt = new DateTime(2026, 12, 22, 23, 0, 0, DateTimeKind.Utc),
                     Status = EventStatus.Active,
                     CoverImageUrl = "https://picsum.photos/seed/6/800/400",
                     TotalCapacity = 600,

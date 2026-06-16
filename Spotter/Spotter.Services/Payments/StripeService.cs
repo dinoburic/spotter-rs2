@@ -13,6 +13,7 @@ namespace Spotter.Services
     {
         private readonly SpotterDbContext _dbContext;
         private readonly IOrderService _orderService;
+        private readonly ICurrentUserService _currentUserService;
         private readonly IConfiguration _configuration;
         private readonly ILogger<StripeService> _logger;
         private readonly string _webhookSecret;
@@ -20,11 +21,13 @@ namespace Spotter.Services
         public StripeService(
             SpotterDbContext dbContext,
             IOrderService orderService,
+            ICurrentUserService currentUserService,
             IConfiguration configuration,
             ILogger<StripeService> logger)
         {
             _dbContext = dbContext;
             _orderService = orderService;
+            _currentUserService = currentUserService;
             _configuration = configuration;
             _logger = logger;
 
@@ -48,6 +51,13 @@ namespace Spotter.Services
             {
                 _logger.LogWarning("Order {OrderId} not found", orderId);
                 throw new NotFoundException("Order not found.");
+            }
+
+            var currentUserId = _currentUserService.GetUserId();
+            if (order.UserId != currentUserId)
+            {
+                _logger.LogWarning("User {UserId} attempted to create payment intent for order {OrderId} owned by {OwnerId}", currentUserId, orderId, order.UserId);
+                throw new ClientException("You can only pay for your own orders.");
             }
 
             if (order.Status != OrderStatus.Pending)

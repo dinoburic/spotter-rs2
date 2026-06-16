@@ -115,8 +115,9 @@ class _ReviewListScreenState extends State<ReviewListScreen> {
                         message: 'No reviews found',
                       )
                     : SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: DataTable(
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: DataTable(
                           columns: const [
                             DataColumn(label: Text('Event')),
                             DataColumn(label: Text('User')),
@@ -161,6 +162,7 @@ class _ReviewListScreenState extends State<ReviewListScreen> {
                           }).toList(),
                         ),
                       ),
+                    ),
           ),
           PaginationControls(
             currentPage: provider.currentPage,

@@ -21,4 +21,5 @@ class ApiConstants {
   static const String points = '/api/points';
   static const String badges = '/api/badges';
   static const String waitlist = '/api/waitlist';
+  static const String reports = '/api/reports';
 }

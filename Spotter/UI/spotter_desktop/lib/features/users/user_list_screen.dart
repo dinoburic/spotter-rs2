@@ -121,8 +121,9 @@ class _UserListScreenState extends State<UserListScreen> {
                         message: 'No users found',
                       )
                     : SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: DataTable(
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: DataTable(
                           columns: const [
                             DataColumn(label: Text('Username')),
                             DataColumn(label: Text('Name')),
@@ -182,6 +183,7 @@ class _UserListScreenState extends State<UserListScreen> {
                           }).toList(),
                         ),
                       ),
+                    ),
           ),
           PaginationControls(
             currentPage: provider.currentPage,

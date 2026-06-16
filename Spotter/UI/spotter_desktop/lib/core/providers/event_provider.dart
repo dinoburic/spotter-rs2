@@ -36,6 +36,7 @@ class EventProvider extends ChangeNotifier {
       final queryParams = <String, dynamic>{
         'page': currentPage,
         'pageSize': pageSize,
+        'includeTotalCount': true,
       };
       if (title != null && title.isNotEmpty) {
         queryParams['title'] = title;

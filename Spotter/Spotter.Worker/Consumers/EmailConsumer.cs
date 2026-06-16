@@ -10,6 +10,7 @@ namespace Spotter.Worker.Consumers
 {
     public class EmailConsumer : BackgroundService
     {
+        private const int MaxRetryCount = 3;
         private readonly IRabbitMqConnectionFactory _connectionFactory;
         private readonly IServiceProvider _serviceProvider;
         private readonly ILogger<EmailConsumer> _logger;
@@ -27,64 +28,85 @@ namespace Spotter.Worker.Consumers
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-{
-    while (!stoppingToken.IsCancellationRequested)
-    {
-        try
         {
-            _logger.LogInformation("GeocodingConsumer starting");
-            _connection = await _connectionFactory.CreateConnectionAsync();
-            _channel = await _connection.CreateChannelAsync();
-
-            await _channel.QueueDeclareAsync(
-                queue: QueueNames.Email,
-                durable: true,
-                exclusive: false,
-                autoDelete: false);
-
-            var consumer = new AsyncEventingBasicConsumer(_channel);
-            consumer.ReceivedAsync += async (_, ea) =>
+            while (!stoppingToken.IsCancellationRequested)
             {
-                var body = ea.Body.ToArray();
-                var json = Encoding.UTF8.GetString(body);
-                var message = JsonConvert.DeserializeObject<EmailMessage>(json);
-
-                if (message == null)
-                {
-                    await _channel.BasicAckAsync(ea.DeliveryTag, false);
-                    return;
-                }
-
                 try
                 {
-                    using var scope = _serviceProvider.CreateScope();
-                    var emailService = scope.ServiceProvider.GetRequiredService<IEmailService>();
-                    await emailService.SendAsync(message);
-                    await _channel.BasicAckAsync(ea.DeliveryTag, false);
+                    _logger.LogInformation("EmailConsumer starting");
+                    _connection = await _connectionFactory.CreateConnectionAsync();
+                    _channel = await _connection.CreateChannelAsync();
+
+                    await _channel.QueueDeclareAsync(
+                        queue: QueueNames.Email,
+                        durable: true,
+                        exclusive: false,
+                        autoDelete: false);
+
+                    var consumer = new AsyncEventingBasicConsumer(_channel);
+                    consumer.ReceivedAsync += async (_, ea) =>
+                    {
+                        var body = ea.Body.ToArray();
+                        var json = Encoding.UTF8.GetString(body);
+                        var message = JsonConvert.DeserializeObject<EmailMessage>(json);
+
+                        if (message == null)
+                        {
+                            await _channel.BasicAckAsync(ea.DeliveryTag, false);
+                            return;
+                        }
+
+                        try
+                        {
+                            using var scope = _serviceProvider.CreateScope();
+                            var emailService = scope.ServiceProvider.GetRequiredService<IEmailService>();
+                            await emailService.SendAsync(message);
+                            await _channel.BasicAckAsync(ea.DeliveryTag, false);
+                            _logger.LogInformation("Email sent successfully to {To}", message.To);
+                        }
+                        catch (Exception ex)
+                        {
+                            var retryCount = GetRetryCount(ea.BasicProperties);
+                            if (retryCount >= MaxRetryCount)
+                            {
+                                _logger.LogError(ex, "Email to {To} failed after {RetryCount} retries, discarding", message.To, retryCount);
+                                await _channel.BasicAckAsync(ea.DeliveryTag, false);
+                            }
+                            else
+                            {
+                                _logger.LogWarning(ex, "Failed to send email to {To}, retry {RetryCount}", message.To, retryCount + 1);
+                                await _channel.BasicNackAsync(ea.DeliveryTag, false, requeue: true);
+                            }
+                        }
+                    };
+
+                    await _channel.BasicConsumeAsync(QueueNames.Email, autoAck: false, consumer: consumer);
+                    _logger.LogInformation("EmailConsumer connected and listening");
+
+                    await Task.Delay(Timeout.Infinite, stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to process email to {To}", message.To);
-                    await _channel.BasicNackAsync(ea.DeliveryTag, false, requeue: true);
+                    _logger.LogError(ex, "EmailConsumer failed, retrying in 10 seconds");
+                    await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
                 }
-            };
+            }
+        }
 
-            await _channel.BasicConsumeAsync(QueueNames.Email, autoAck: false, consumer: consumer);
-            _logger.LogInformation("GeocodingConsumer connected and listening");
+        private static int GetRetryCount(IReadOnlyBasicProperties properties)
+        {
+            if (properties.Headers != null &&
+                properties.Headers.TryGetValue("x-retry-count", out var retryObj))
+            {
+                return Convert.ToInt32(retryObj);
+            }
+            return 0;
+        }
 
-            await Task.Delay(Timeout.Infinite, stoppingToken);
-        }
-        catch (OperationCanceledException)
-        {
-            break;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "GeocodingConsumer failed, retrying in 10 seconds");
-            await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
-        }
-    }
-}
         public override async Task StopAsync(CancellationToken cancellationToken)
         {
             _logger.LogInformation("EmailConsumer stopping");

@@ -4,14 +4,13 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import '../../core/providers/order_provider.dart';
-import '../../core/providers/ticket_provider.dart';
+import '../../core/providers/auth_provider.dart';
+import '../../core/providers/base_provider.dart';
 import '../../core/providers/event_provider.dart';
 import '../../core/providers/category_provider.dart';
-import '../../core/models/order_response.dart';
-import '../../core/models/ticket_response.dart';
 import '../../core/models/event_response.dart';
 import '../../core/models/category_response.dart';
+import '../../core/constants/api_constants.dart';
 import '../../core/constants/app_colors.dart';
 import '../../widgets/spotter_drawer.dart';
 import '../../widgets/loading_indicator.dart';
@@ -24,6 +23,8 @@ class ReportsScreen extends StatefulWidget {
 }
 
 class _ReportsScreenState extends State<ReportsScreen> {
+  final BaseProvider _baseProvider = BaseProvider();
+
   DateTime _startDate = DateTime.now().subtract(const Duration(days: 30));
   DateTime _endDate = DateTime.now();
   int? _selectedEventId;
@@ -92,20 +93,24 @@ class _ReportsScreenState extends State<ReportsScreen> {
     setState(() => _isGeneratingFinancial = true);
 
     try {
-      final provider = context.read<OrderProvider>();
-      var orders = await provider.loadForReport(
-        from: _startDate,
-        to: _endDate,
+      final token = context.read<AuthProvider>().token;
+
+      final queryParams = <String, dynamic>{
+        'from': _startDate.toIso8601String(),
+        'to': _endDate.add(const Duration(days: 1)).toIso8601String(),
+      };
+      if (_selectedCategoryId != null) {
+        queryParams['categoryId'] = _selectedCategoryId;
+      }
+
+      final result = await _baseProvider.get<Map<String, dynamic>>(
+        '${ApiConstants.reports}/financial',
+        token: token,
+        queryParameters: queryParams,
+        fromJson: (json) => json as Map<String, dynamic>,
       );
 
-      if (_selectedCategoryId != null) {
-        final eventProvider = context.read<EventProvider>();
-        final categoryEvents = _events
-            .where((e) => e.categoryId == _selectedCategoryId)
-            .map((e) => e.id)
-            .toSet();
-        orders = orders.where((o) => categoryEvents.contains(o.eventId)).toList();
-      }
+      final orders = (result['orders'] as List?) ?? [];
 
       if (orders.isEmpty) {
         if (mounted) {
@@ -116,12 +121,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
         return;
       }
 
-      final totalRevenue = orders.fold<double>(
-        0,
-        (sum, order) => sum + order.totalAmount,
-      );
+      final totalRevenue = (result['totalRevenue'] as num?)?.toDouble() ?? 0.0;
+      final totalOrders = (result['totalOrders'] as num?)?.toInt() ?? 0;
+      final totalTicketsSold = (result['totalTicketsSold'] as num?)?.toInt() ?? 0;
 
-      final pdf = _buildFinancialReportPdf(orders, totalRevenue);
+      final pdf = _buildFinancialReportPdf(orders, totalRevenue, totalOrders, totalTicketsSold);
 
       if (mounted) {
         await Printing.layoutPdf(
@@ -133,7 +137,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
+          SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
         );
       }
     } finally {
@@ -144,7 +148,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 
   pw.Document _buildFinancialReportPdf(
-      List<OrderResponse> orders, double totalRevenue) {
+      List<dynamic> orders, double totalRevenue, int totalOrders, int totalTicketsSold) {
     final pdf = pw.Document();
     final dateFormat = DateFormat('dd.MM.yyyy');
     final dateTimeFormat = DateFormat('dd.MM.yyyy HH:mm');
@@ -246,7 +250,29 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     ),
                     pw.SizedBox(height: 4),
                     pw.Text(
-                      '${orders.length}',
+                      '$totalOrders',
+                      style: pw.TextStyle(
+                        fontSize: 18,
+                        fontWeight: pw.FontWeight.bold,
+                        color: _primaryPdfColor,
+                      ),
+                    ),
+                  ],
+                ),
+                pw.Container(
+                  width: 1,
+                  height: 40,
+                  color: PdfColors.grey400,
+                ),
+                pw.Column(
+                  children: [
+                    pw.Text(
+                      'Total Tickets',
+                      style: const pw.TextStyle(fontSize: 10),
+                    ),
+                    pw.SizedBox(height: 4),
+                    pw.Text(
+                      '$totalTicketsSold',
                       style: pw.TextStyle(
                         fontSize: 18,
                         fontWeight: pw.FontWeight.bold,
@@ -297,29 +323,31 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 children: [
                   _buildTableHeader('Order ID'),
                   _buildTableHeader('Event'),
-                  _buildTableHeader('User'),
+                  _buildTableHeader('Category'),
                   _buildTableHeader('Date'),
                   _buildTableHeader('Amount (BAM)'),
-                  _buildTableHeader('Status'),
+                  _buildTableHeader('Tickets'),
                 ],
               ),
               ...orders.asMap().entries.map((entry) {
                 final index = entry.key;
-                final order = entry.value;
+                final order = entry.value as Map<String, dynamic>;
                 final isAlternate = index % 2 == 1;
+                final eventTitle = order['eventTitle'] as String? ?? '';
+                final createdAt = DateTime.tryParse(order['createdAt'] as String? ?? '') ?? DateTime.now();
                 return pw.TableRow(
                   decoration: pw.BoxDecoration(
                     color: isAlternate ? PdfColors.grey100 : PdfColors.white,
                   ),
                   children: [
-                    _buildTableCell('#${order.id}'),
-                    _buildTableCell(order.eventTitle.length > 25
-                        ? '${order.eventTitle.substring(0, 25)}...'
-                        : order.eventTitle),
-                    _buildTableCell(order.userFullName),
-                    _buildTableCell(dateFormat.format(order.createdAt)),
-                    _buildTableCell(order.totalAmount.toStringAsFixed(2)),
-                    _buildTableCell(order.statusName),
+                    _buildTableCell('#${order['orderId']}'),
+                    _buildTableCell(eventTitle.length > 25
+                        ? '${eventTitle.substring(0, 25)}...'
+                        : eventTitle),
+                    _buildTableCell(order['categoryName'] as String? ?? ''),
+                    _buildTableCell(dateFormat.format(createdAt)),
+                    _buildTableCell(((order['totalAmount'] as num?)?.toDouble() ?? 0).toStringAsFixed(2)),
+                    _buildTableCell('${order['ticketCount'] ?? 0}'),
                   ],
                 );
               }),
@@ -344,10 +372,26 @@ class _ReportsScreenState extends State<ReportsScreen> {
     });
 
     try {
-      final provider = context.read<TicketProvider>();
-      final tickets = await provider.loadForGuestList(_selectedEventId!);
+      final token = context.read<AuthProvider>().token;
+      final event = _events.firstWhere((e) => e.id == _selectedEventId);
 
-      if (tickets.isEmpty) {
+      final result = await _baseProvider.get<Map<String, dynamic>>(
+        '${ApiConstants.reports}/guest-list',
+        token: token,
+        queryParameters: {
+          'from': event.startsAt.subtract(const Duration(days: 365)).toIso8601String(),
+          'to': event.startsAt.add(const Duration(days: 1)).toIso8601String(),
+        },
+        fromJson: (json) => json as Map<String, dynamic>,
+      );
+
+      final allGuests = (result['guests'] as List?) ?? [];
+      final guests = allGuests.where((g) {
+        final guest = g as Map<String, dynamic>;
+        return guest['eventTitle'] == event.title;
+      }).toList();
+
+      if (guests.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('No tickets found for this event')),
@@ -356,14 +400,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
         return;
       }
 
-      final event = _events.firstWhere((e) => e.id == _selectedEventId);
-
-      final activeCount = tickets.where((t) => t.status == 0).length;
-      final usedCount = tickets.where((t) => t.status == 1).length;
-      final cancelledCount = tickets.where((t) => t.status == 2).length;
+      final activeCount = guests.where((g) => (g as Map<String, dynamic>)['status'] == 'Active').length;
+      final usedCount = guests.where((g) => (g as Map<String, dynamic>)['status'] == 'Used').length;
+      final cancelledCount = guests.where((g) => (g as Map<String, dynamic>)['status'] == 'Cancelled').length;
 
       final pdf = _buildGuestListPdf(
-          tickets, event, activeCount, usedCount, cancelledCount);
+          guests, event, activeCount, usedCount, cancelledCount);
 
       if (mounted) {
         await Printing.layoutPdf(
@@ -375,7 +417,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
+          SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
         );
       }
     } finally {
@@ -386,7 +428,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 
   pw.Document _buildGuestListPdf(
-    List<TicketResponse> tickets,
+    List<dynamic> guests,
     EventResponse event,
     int activeCount,
     int usedCount,
@@ -485,7 +527,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
             child: pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
               children: [
-                _buildSummaryItem('Total Tickets', '${tickets.length}'),
+                _buildSummaryItem('Total Tickets', '${guests.length}'),
                 pw.Container(width: 1, height: 40, color: PdfColors.grey400),
                 _buildSummaryItem('Active', '$activeCount', PdfColors.blue),
                 pw.Container(width: 1, height: 40, color: PdfColors.grey400),
@@ -501,8 +543,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
             columnWidths: {
               0: const pw.FlexColumnWidth(0.5),
               1: const pw.FlexColumnWidth(2),
-              2: const pw.FlexColumnWidth(1.5),
-              3: const pw.FlexColumnWidth(1),
+              2: const pw.FlexColumnWidth(2),
+              3: const pw.FlexColumnWidth(1.5),
               4: const pw.FlexColumnWidth(1),
               5: const pw.FlexColumnWidth(1.2),
             },
@@ -511,28 +553,29 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 decoration: pw.BoxDecoration(color: _primaryPdfColor),
                 children: [
                   _buildTableHeader('#'),
-                  _buildTableHeader('User'),
+                  _buildTableHeader('Guest Name'),
+                  _buildTableHeader('Email'),
                   _buildTableHeader('Ticket Type'),
-                  _buildTableHeader('Type'),
                   _buildTableHeader('Status'),
                   _buildTableHeader('Issued At'),
                 ],
               ),
-              ...tickets.asMap().entries.map((entry) {
+              ...guests.asMap().entries.map((entry) {
                 final index = entry.key;
-                final ticket = entry.value;
+                final guest = entry.value as Map<String, dynamic>;
                 final isAlternate = index % 2 == 1;
+                final issuedAt = DateTime.tryParse(guest['issuedAt'] as String? ?? '') ?? DateTime.now();
                 return pw.TableRow(
                   decoration: pw.BoxDecoration(
                     color: isAlternate ? PdfColors.grey100 : PdfColors.white,
                   ),
                   children: [
                     _buildTableCell('${index + 1}'),
-                    _buildTableCell(ticket.userFullName),
-                    _buildTableCell(ticket.ticketTypeName),
-                    _buildTableCell(ticket.typeName),
-                    _buildTableCell(ticket.statusName),
-                    _buildTableCell(dateFormat.format(ticket.issuedAt)),
+                    _buildTableCell(guest['userFullName'] as String? ?? ''),
+                    _buildTableCell(guest['userEmail'] as String? ?? ''),
+                    _buildTableCell(guest['ticketTypeName'] as String? ?? ''),
+                    _buildTableCell(guest['status'] as String? ?? ''),
+                    _buildTableCell(dateFormat.format(issuedAt)),
                   ],
                 );
               }),

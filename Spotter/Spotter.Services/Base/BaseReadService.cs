@@ -29,6 +29,9 @@ namespace Spotter.Services
 
         public virtual async Task<PageResult<TResponse>> GetAllAsync(TSearch? search = null)
         {
+            var page = Math.Max(1, search?.Page ?? 1);
+            var pageSize = Math.Clamp(search?.PageSize ?? 10, 1, 100);
+
             IQueryable<TEntity> query = _dbContext.Set<TEntity>();
 
             query = await IncludeRelatedEntitiesAsync(search, query);
@@ -48,15 +51,7 @@ namespace Spotter.Services
                 query = query.OrderBy(search.SortBy);
             }
 
-            var pageSize = search?.PageSize.HasValue == true
-                ? Math.Min(search.PageSize!.Value, 100)
-                : 20;
-
-            if (search?.Page.HasValue == true)
-            {
-                query = query.Skip((search.Page.Value - 1) * pageSize);
-            }
-
+            query = query.Skip((page - 1) * pageSize);
             query = query.Take(pageSize);
 
             var entities = await query.ToListAsync();

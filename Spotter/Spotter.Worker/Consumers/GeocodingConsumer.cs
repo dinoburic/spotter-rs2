@@ -12,6 +12,7 @@ namespace Spotter.Worker.Consumers
 {
     public class GeocodingConsumer : BackgroundService
     {
+        private const int MaxRetryCount = 3;
         private readonly IRabbitMqConnectionFactory _connectionFactory;
         private readonly IServiceProvider _serviceProvider;
         private readonly ILogger<GeocodingConsumer> _logger;
@@ -46,53 +47,62 @@ namespace Spotter.Worker.Consumers
 
                     var consumer = new AsyncEventingBasicConsumer(_channel);
                     consumer.ReceivedAsync += async (_, ea) =>
-        {
-            var body = ea.Body.ToArray();
-            var json = Encoding.UTF8.GetString(body);
-            var message = JsonConvert.DeserializeObject<GeocodingRequestMessage>(json);
-
-            _logger.LogInformation("GeocodingConsumer received message for venue {VenueId}", message?.VenueId);
-
-            if (message == null)
-            {
-                await _channel.BasicAckAsync(ea.DeliveryTag, false);
-                return;
-            }
-
-            try
-            {
-                using var scope = _serviceProvider.CreateScope();
-                var geocodingService = scope.ServiceProvider.GetRequiredService<IGeocodingService>();
-                var dbContext = scope.ServiceProvider.GetRequiredService<WorkerDbContext>();
-
-                var result = await geocodingService.GeocodeAsync(message.Name,message.Address, message.City, message.Country);
-
-                var venue = await dbContext.Venues.FirstOrDefaultAsync(v => v.Id == message.VenueId, stoppingToken);
-                if (venue != null)
-                {
-                    if (result.HasValue)
                     {
-                        venue.Latitude = result.Value.Latitude;
-                        venue.Longitude = result.Value.Longitude;
-                        _logger.LogInformation("Geocoded venue {VenueId}: {Lat}, {Lng}", message.VenueId, result.Value.Latitude, result.Value.Longitude);
-                    }
-                    else
-                    {
-                        _logger.LogWarning("Geocoding failed for venue {VenueId}", message.VenueId);
-                    }
+                        var body = ea.Body.ToArray();
+                        var json = Encoding.UTF8.GetString(body);
+                        var message = JsonConvert.DeserializeObject<GeocodingRequestMessage>(json);
 
-                    venue.GeocodingPending = false;
-                    await dbContext.SaveChangesAsync(stoppingToken);
-                }
+                        _logger.LogInformation("GeocodingConsumer received message for venue {VenueId}", message?.VenueId);
 
-                await _channel.BasicAckAsync(ea.DeliveryTag, false);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error processing geocoding for venue {VenueId}", message?.VenueId);
-                await _channel.BasicNackAsync(ea.DeliveryTag, false, requeue: true);
-            }
-        };
+                        if (message == null)
+                        {
+                            await _channel.BasicAckAsync(ea.DeliveryTag, false);
+                            return;
+                        }
+
+                        try
+                        {
+                            using var scope = _serviceProvider.CreateScope();
+                            var geocodingService = scope.ServiceProvider.GetRequiredService<IGeocodingService>();
+                            var dbContext = scope.ServiceProvider.GetRequiredService<WorkerDbContext>();
+
+                            var result = await geocodingService.GeocodeAsync(message.Name, message.Address, message.City, message.Country);
+
+                            var venue = await dbContext.Venues.FirstOrDefaultAsync(v => v.Id == message.VenueId, stoppingToken);
+                            if (venue != null)
+                            {
+                                if (result.HasValue)
+                                {
+                                    venue.Latitude = result.Value.Latitude;
+                                    venue.Longitude = result.Value.Longitude;
+                                    _logger.LogInformation("Geocoded venue {VenueId}: {Lat}, {Lng}", message.VenueId, result.Value.Latitude, result.Value.Longitude);
+                                }
+                                else
+                                {
+                                    _logger.LogWarning("Geocoding failed for venue {VenueId}", message.VenueId);
+                                }
+
+                                venue.GeocodingPending = false;
+                                await dbContext.SaveChangesAsync(stoppingToken);
+                            }
+
+                            await _channel.BasicAckAsync(ea.DeliveryTag, false);
+                        }
+                        catch (Exception ex)
+                        {
+                            var retryCount = GetRetryCount(ea.BasicProperties);
+                            if (retryCount >= MaxRetryCount)
+                            {
+                                _logger.LogError(ex, "Message failed after {RetryCount} retries for venue {VenueId}, discarding", retryCount, message?.VenueId);
+                                await _channel.BasicAckAsync(ea.DeliveryTag, false);
+                            }
+                            else
+                            {
+                                _logger.LogWarning(ex, "Error processing geocoding for venue {VenueId}, retry {RetryCount}", message?.VenueId, retryCount + 1);
+                                await _channel.BasicNackAsync(ea.DeliveryTag, false, requeue: true);
+                            }
+                        }
+                    };
 
                     await _channel.BasicConsumeAsync(QueueNames.Geocoding, autoAck: false, consumer: consumer);
                     _logger.LogInformation("GeocodingConsumer connected and listening");
@@ -110,6 +120,17 @@ namespace Spotter.Worker.Consumers
                 }
             }
         }
+
+        private static int GetRetryCount(IReadOnlyBasicProperties properties)
+        {
+            if (properties.Headers != null &&
+                properties.Headers.TryGetValue("x-retry-count", out var retryObj))
+            {
+                return Convert.ToInt32(retryObj);
+            }
+            return 0;
+        }
+
         public override async Task StopAsync(CancellationToken cancellationToken)
         {
             _logger.LogInformation("GeocodingConsumer stopping");

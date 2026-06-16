@@ -7,6 +7,7 @@ using Spotter.Model.Exceptions;
 using Spotter.Model.Requests;
 using Spotter.Model.Responses;
 using Spotter.Model.SearchObjects;
+using Spotter.Model.Static;
 using Spotter.Services.Database;
 using Spotter.Services.StateMachines;
 
@@ -45,8 +46,24 @@ namespace Spotter.Services
 
         protected override IQueryable<Event> ApplyFilters(IQueryable<Event> query, EventSearch? search)
         {
+            var isAdmin = _currentUserService.IsAdmin();
+            var isOrganizer = _currentUserService.IsInRole(Roles.Organizer);
+
+            if (search?.IncludeDeleted != true || !isAdmin)
+            {
+                query = query.Where(e => !e.IsDeleted);
+            }
+
+            if (!isAdmin && !isOrganizer)
+            {
+                if (!search?.Status.HasValue ?? true)
+                {
+                    query = query.Where(e => e.Status == EventStatus.Active);
+                }
+            }
+
             if (search == null)
-                return query.Where(e => !e.IsDeleted);
+                return query;
 
             if (!string.IsNullOrWhiteSpace(search.Title))
                 query = query.Where(e => e.Title.Contains(search.Title));
@@ -71,9 +88,6 @@ namespace Spotter.Services
 
             if (search.StartsBefore.HasValue)
                 query = query.Where(e => e.StartsAt <= search.StartsBefore.Value);
-
-            if (!search.IncludeDeleted)
-                query = query.Where(e => !e.IsDeleted);
 
             return query;
         }

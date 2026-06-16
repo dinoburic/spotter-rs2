@@ -11,6 +11,7 @@ using Spotter.Services.Database;
 using Spotter.Services.StateMachines;
 using System.Text;
 using System.Data;
+using Spotter.Model.Messages;
 
 namespace Spotter.Services
 {
@@ -26,6 +27,8 @@ namespace Spotter.Services
         private readonly ISpotterPointsService _spotterPointsService;
         private readonly IBadgeService _badgeService;
         private readonly IWaitlistService _waitlistService;
+
+        private readonly IRabbitMqPublisher _rabbitMqPublisher;
         private readonly ILogger<OrderService> _logger;
 
         public OrderService(
@@ -39,10 +42,12 @@ namespace Spotter.Services
             ISpotterPointsService spotterPointsService,
             IBadgeService badgeService,
             IWaitlistService waitlistService,
+            IRabbitMqPublisher rabbitMqPublisher,
             ILogger<OrderService> logger)
         {
             _dbContext = dbContext;
             _mapper = mapper;
+            _rabbitMqPublisher = rabbitMqPublisher;
             _currentUserService = currentUserService;
             _validator = validator;
             _notificationService = notificationService;
@@ -338,6 +343,13 @@ namespace Spotter.Services
                     type: NotificationType.OrderPaid,
                     referenceId: order.Id.ToString()
                 );
+
+                await _rabbitMqPublisher.PublishAsync(QueueNames.Email, new EmailMessage
+                {
+                    To = order.User?.Email ?? string.Empty,
+                    Subject = $"Your tickets for {order.Event?.Title}",
+                    Body = $"Your payment was successful! {ticketCount} ticket(s) issued."
+                });
 
                 return _mapper.Map<OrderResponse>(order);
             }

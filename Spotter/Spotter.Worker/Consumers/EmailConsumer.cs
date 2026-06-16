@@ -69,13 +69,28 @@ namespace Spotter.Worker.Consumers
                             var retryCount = GetRetryCount(ea.BasicProperties);
                             if (retryCount >= MaxRetryCount)
                             {
-                                _logger.LogError(ex, "Email to {To} failed after {RetryCount} retries, discarding", message.To, retryCount);
+                                _logger.LogError(ex, "Email to {To} discarded after {MaxRetries} retries", message.To, MaxRetryCount);
                                 await _channel.BasicAckAsync(ea.DeliveryTag, false);
                             }
                             else
                             {
-                                _logger.LogWarning(ex, "Failed to send email to {To}, retry {RetryCount}", message.To, retryCount + 1);
-                                await _channel.BasicNackAsync(ea.DeliveryTag, false, requeue: true);
+                                _logger.LogWarning(ex, "Retry {Attempt} for email to {To}", retryCount + 1, message.To);
+
+                                var properties = new BasicProperties
+                                {
+                                    Headers = new Dictionary<string, object?>
+                                    {
+                                        ["x-retry-count"] = retryCount + 1
+                                    }
+                                };
+                                await _channel.BasicPublishAsync(
+                                    exchange: "",
+                                    routingKey: ea.RoutingKey,
+                                    mandatory: false,
+                                    basicProperties: properties,
+                                    body: ea.Body
+                                );
+                                await _channel.BasicAckAsync(ea.DeliveryTag, false);
                             }
                         }
                     };

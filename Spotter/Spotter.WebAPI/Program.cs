@@ -150,6 +150,7 @@ builder.Services.AddSingleton<IRabbitMqPublisher, RabbitMqPublisher>();
 builder.Services.AddScoped<IRecommendationService, RecommendationService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddHostedService<RecommendationTrainingService>();
+builder.Services.AddHostedService<PendingOrderExpirationService>();
 
 builder.Services.AddScoped<EventStateMachine>();
 builder.Services.AddScoped<OrderStateMachine>();

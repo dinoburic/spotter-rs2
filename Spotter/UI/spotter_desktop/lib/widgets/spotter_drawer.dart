@@ -12,6 +12,7 @@ import '../features/events/event_list_screen.dart';
 import '../features/ticket_types/ticket_type_list_screen.dart';
 import '../features/orders/order_list_screen.dart';
 import '../features/tickets/ticket_list_screen.dart';
+import '../features/tickets/ticket_scanner_screen.dart';
 import '../features/reservations/reservation_list_screen.dart';
 import '../features/reviews/review_list_screen.dart';
 import '../features/reports/reports_screen.dart';
@@ -130,6 +131,13 @@ class SpotterDrawer extends StatelessWidget {
                   title: 'Tickets',
                   route: 'tickets',
                   screen: const TicketListScreen(),
+                ),
+                _buildNavItem(
+                  context,
+                  icon: Icons.qr_code_scanner,
+                  title: 'Ticket Scanner',
+                  route: 'scanner',
+                  screen: const TicketScannerScreen(),
                 ),
                 _buildNavItem(
                   context,

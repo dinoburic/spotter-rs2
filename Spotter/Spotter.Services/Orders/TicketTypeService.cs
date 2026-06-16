@@ -13,6 +13,7 @@ namespace Spotter.Services
 {
     public class TicketTypeService : BaseCRUDService<TicketType, TicketTypeResponse, TicketTypeSearch, TicketTypeInsertRequest, TicketTypeUpdateRequest>, ITicketTypeService
     {
+        private readonly ICurrentUserService _currentUserService;
         private readonly ILogger<TicketTypeService> _logger;
 
         public TicketTypeService(
@@ -20,9 +21,11 @@ namespace Spotter.Services
             IMapper mapper,
             IValidator<TicketTypeInsertRequest> insertValidator,
             IValidator<TicketTypeUpdateRequest> updateValidator,
+            ICurrentUserService currentUserService,
             ILogger<TicketTypeService> logger)
             : base(dbContext, mapper, insertValidator, updateValidator)
         {
+            _currentUserService = currentUserService;
             _logger = logger;
         }
 
@@ -58,6 +61,10 @@ namespace Spotter.Services
                 throw new NotFoundException("Event not found.");
             }
 
+            var currentUserId = _currentUserService.GetUserId();
+            if (!_currentUserService.IsAdmin() && eventEntity.OrganizerId != currentUserId)
+                throw new ClientException("You can only add ticket types to your own events.");
+
             if (eventEntity.Status == EventStatus.Cancelled)
                 throw new ClientException("Cannot add ticket types to a cancelled event.");
 
@@ -90,6 +97,14 @@ namespace Spotter.Services
                 throw new NotFoundException("TicketType not found.");
             }
 
+            var eventEntity = await _dbContext.Events.FirstOrDefaultAsync(e => e.Id == entity.EventId);
+            if (eventEntity == null)
+                throw new NotFoundException("Event not found.");
+
+            var currentUserId = _currentUserService.GetUserId();
+            if (!_currentUserService.IsAdmin() && eventEntity.OrganizerId != currentUserId)
+                throw new ClientException("You can only modify ticket types for your own events.");
+
             if (request.TotalQuantity < entity.SoldQuantity)
                 throw new ClientException("TotalQuantity cannot be less than the number of already sold tickets.");
 
@@ -110,6 +125,14 @@ namespace Spotter.Services
                 _logger.LogWarning("TicketType {TicketTypeId} not found", id);
                 throw new NotFoundException("TicketType not found.");
             }
+
+            var eventEntity = await _dbContext.Events.FirstOrDefaultAsync(e => e.Id == entity.EventId);
+            if (eventEntity == null)
+                throw new NotFoundException("Event not found.");
+
+            var currentUserId = _currentUserService.GetUserId();
+            if (!_currentUserService.IsAdmin() && eventEntity.OrganizerId != currentUserId)
+                throw new ClientException("You can only delete ticket types for your own events.");
 
             if (entity.SoldQuantity > 0)
             {

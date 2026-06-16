@@ -155,7 +155,28 @@ namespace Spotter.Services
 
                 await using var transaction = await _dbContext.Database.BeginTransactionAsync();
 
-                var totalAmount = request.Items.Sum(i => i.Quantity * ticketTypesDict[i.TicketTypeId].Price);
+                var subtotal = request.Items.Sum(i => i.Quantity * ticketTypesDict[i.TicketTypeId].Price);
+                var spotterPointsRedeemed = 0;
+                var discountApplied = 0m;
+
+                if (request.SpotterPointsToRedeem > 0)
+                {
+                    var userBalance = await _dbContext.SpotterPoints
+                        .Where(sp => sp.UserId == userId)
+                        .SumAsync(sp => sp.Delta);
+
+                    var pointsToRedeem = Math.Min(request.SpotterPointsToRedeem, userBalance);
+                    discountApplied = Math.Min(pointsToRedeem * 0.1m, subtotal);
+                    spotterPointsRedeemed = (int)(discountApplied / 0.1m);
+
+                    if (spotterPointsRedeemed > 0)
+                    {
+                        await _spotterPointsService.RedeemAsync(userId, spotterPointsRedeemed, null);
+                        _logger.LogInformation("User {UserId} redeemed {Points} points for {Discount} BAM discount", userId, spotterPointsRedeemed, discountApplied);
+                    }
+                }
+
+                var totalAmount = subtotal - discountApplied;
 
                 var order = new Order
                 {
@@ -164,8 +185,8 @@ namespace Spotter.Services
                     Status = OrderStatus.Pending,
                     CreatedAt = DateTime.UtcNow,
                     TotalAmount = totalAmount,
-                    SpotterPointsRedeemed = 0,
-                    DiscountApplied = 0
+                    SpotterPointsRedeemed = spotterPointsRedeemed,
+                    DiscountApplied = discountApplied
                 };
 
                 _dbContext.Orders.Add(order);
@@ -332,6 +353,18 @@ namespace Spotter.Services
                 }
             }
 
+            if (order.SpotterPointsRedeemed > 0)
+            {
+                await _spotterPointsService.EarnAsync(
+                    order.UserId,
+                    order.SpotterPointsRedeemed,
+                    PointSource.Redemption,
+                    order.Id.ToString(),
+                    "Points restored from refunded order"
+                );
+                _logger.LogInformation("Restored {Points} points for refunded order {OrderId}", order.SpotterPointsRedeemed, order.Id);
+            }
+
             await _dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
 
@@ -379,12 +412,74 @@ namespace Spotter.Services
                         ticketType.SoldQuantity = Math.Max(0, ticketType.SoldQuantity - item.Quantity);
                     }
                 }
+
+                if (order.SpotterPointsRedeemed > 0)
+                {
+                    await _spotterPointsService.EarnAsync(
+                        order.UserId,
+                        order.SpotterPointsRedeemed,
+                        PointSource.Redemption,
+                        order.Id.ToString(),
+                        "Points restored from cancelled order"
+                    );
+                    _logger.LogInformation("Restored {Points} points for cancelled order {OrderId}", order.SpotterPointsRedeemed, order.Id);
+                }
             }
 
             _orderStateMachine.Transition(order, OrderStatus.Cancelled);
             await _dbContext.SaveChangesAsync();
 
             _logger.LogInformation("Order {OrderId} cancelled successfully", id);
+        }
+
+        public async Task CancelBySystemAsync(int orderId)
+        {
+            _logger.LogInformation("Cancelling order {OrderId} by system", orderId);
+
+            var order = await _dbContext.Orders
+                .Include(o => o.OrderItems)
+                .FirstOrDefaultAsync(o => o.Id == orderId);
+
+            if (order == null)
+            {
+                _logger.LogWarning("Order {OrderId} not found for system cancellation", orderId);
+                return;
+            }
+
+            if (order.Status == OrderStatus.Cancelled)
+            {
+                _logger.LogInformation("Order {OrderId} already cancelled", orderId);
+                return;
+            }
+
+            if (order.Status == OrderStatus.Pending)
+            {
+                foreach (var item in order.OrderItems)
+                {
+                    var ticketType = await _dbContext.TicketTypes.FindAsync(item.TicketTypeId);
+                    if (ticketType != null)
+                    {
+                        ticketType.SoldQuantity = Math.Max(0, ticketType.SoldQuantity - item.Quantity);
+                    }
+                }
+
+                if (order.SpotterPointsRedeemed > 0)
+                {
+                    await _spotterPointsService.EarnAsync(
+                        order.UserId,
+                        order.SpotterPointsRedeemed,
+                        PointSource.Redemption,
+                        order.Id.ToString(),
+                        "Points restored from cancelled order"
+                    );
+                    _logger.LogInformation("Restored {Points} points for system-cancelled order {OrderId}", order.SpotterPointsRedeemed, order.Id);
+                }
+            }
+
+            _orderStateMachine.Transition(order, OrderStatus.Cancelled);
+            await _dbContext.SaveChangesAsync();
+
+            _logger.LogInformation("Order {OrderId} cancelled by system (webhook)", orderId);
         }
 
         private static string GenerateQrPayload(int orderId, int orderItemId, int ticketTypeId)

@@ -93,13 +93,28 @@ namespace Spotter.Worker.Consumers
                             var retryCount = GetRetryCount(ea.BasicProperties);
                             if (retryCount >= MaxRetryCount)
                             {
-                                _logger.LogError(ex, "Message failed after {RetryCount} retries for venue {VenueId}, discarding", retryCount, message?.VenueId);
+                                _logger.LogError(ex, "Message discarded after {MaxRetries} retries for venue {VenueId}", MaxRetryCount, message?.VenueId);
                                 await _channel.BasicAckAsync(ea.DeliveryTag, false);
                             }
                             else
                             {
-                                _logger.LogWarning(ex, "Error processing geocoding for venue {VenueId}, retry {RetryCount}", message?.VenueId, retryCount + 1);
-                                await _channel.BasicNackAsync(ea.DeliveryTag, false, requeue: true);
+                                _logger.LogWarning(ex, "Retry {Attempt} for venue {VenueId}", retryCount + 1, message?.VenueId);
+
+                                var properties = new BasicProperties
+                                {
+                                    Headers = new Dictionary<string, object?>
+                                    {
+                                        ["x-retry-count"] = retryCount + 1
+                                    }
+                                };
+                                await _channel.BasicPublishAsync(
+                                    exchange: "",
+                                    routingKey: ea.RoutingKey,
+                                    mandatory: false,
+                                    basicProperties: properties,
+                                    body: ea.Body
+                                );
+                                await _channel.BasicAckAsync(ea.DeliveryTag, false);
                             }
                         }
                     };

@@ -18,17 +18,33 @@ namespace Spotter.Services
             _logger = logger;
         }
 
-        public async Task<RefreshToken> GetStoredTokenAsync(string refreshToken)
+        public async Task<RefreshToken?> GetStoredTokenAsync(string refreshToken)
         {
-            var token = await _refreshTokens.FirstOrDefaultAsync(rt => rt.Token == refreshToken);
+            var stored = await _refreshTokens
+                .Include(rt => rt.User)
+                .FirstOrDefaultAsync(rt => rt.Token == refreshToken);
 
-            if (token == null)
+            if (stored == null)
             {
                 _logger.LogWarning("Refresh token not found");
-                throw new ClientException("Refresh token not found.");
+                return null;
             }
 
-            return token;
+            if (stored.ExpiresAt <= DateTime.UtcNow)
+            {
+                _logger.LogWarning("Refresh token expired for user {UserId}", stored.UserId);
+                _context.RefreshTokens.Remove(stored);
+                await _context.SaveChangesAsync();
+                return null;
+            }
+
+            if (stored.User == null || !stored.User.IsActive || stored.User.IsDeleted)
+            {
+                _logger.LogWarning("Refresh token belongs to inactive/deleted user {UserId}", stored.UserId);
+                return null;
+            }
+
+            return stored;
         }
 
         public async Task InsertAsync(RefreshToken refreshToken)

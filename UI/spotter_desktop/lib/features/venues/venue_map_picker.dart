@@ -32,6 +32,12 @@ class _VenueMapPickerState extends State<VenueMapPicker> {
   }
 
   @override
+  void dispose() {
+    _mapController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final initialCenter = _selectedLocation ?? const LatLng(43.9, 17.6);
 

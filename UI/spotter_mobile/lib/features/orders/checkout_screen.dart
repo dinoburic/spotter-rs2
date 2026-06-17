@@ -46,8 +46,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     double total = 0;
     for (final entry in _quantities.entries) {
       final ticketType = eventProvider.ticketTypes
-          .firstWhere((t) => t.id == entry.key);
-      total += ticketType.price * entry.value;
+          .where((t) => t.id == entry.key)
+          .firstOrNull;
+      if (ticketType != null) {
+        total += ticketType.price * entry.value;
+      }
     }
     return total;
   }

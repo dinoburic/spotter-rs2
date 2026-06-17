@@ -22,6 +22,12 @@ class _MapScreenState extends State<MapScreen> {
   int? _selectedCategoryId;
 
   @override
+  void dispose() {
+    _mapController.dispose();
+    super.dispose();
+  }
+
+  @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {

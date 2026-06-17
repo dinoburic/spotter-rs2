@@ -82,7 +82,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             backgroundColor: AppColors.primary.withValues(alpha:0.2),
             child: profile != null
                 ? Text(
-                    '${profile.firstName[0]}${profile.lastName[0]}',
+                    '${profile.firstName.isNotEmpty ? profile.firstName[0] : '?'}${profile.lastName.isNotEmpty ? profile.lastName[0] : '?'}',
                     style: const TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.bold,

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Spotter.Model.Requests;
 using Spotter.Model.Responses;
 using Spotter.Model.SearchObjects;
+using Spotter.Model.Static;
 using Spotter.Services;
 
 namespace Spotter.WebAPI.Controllers
@@ -34,6 +35,7 @@ namespace Spotter.WebAPI.Controllers
         }
 
         [HttpPost("use")]
+        [Authorize(Roles = $"{Roles.Admin},{Roles.Organizer}")]
         public async Task<ActionResult<TicketResponse>> UseTicket([FromBody] UseTicketRequest request)
         {
             var result = await _ticketService.UseTicketAsync(request.QrCodePayload);

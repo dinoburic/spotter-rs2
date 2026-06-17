@@ -69,7 +69,7 @@ namespace Spotter.WebAPI.Controllers
         }
 
         [HttpPost("{id}/cancel")]
-        [Authorize]
+        [Authorize(Roles = $"{Roles.Organizer},{Roles.Admin}")]
         public async Task<ActionResult<EventResponse>> Cancel(int id)
         {
             var result = await _eventService.CancelAsync(id);

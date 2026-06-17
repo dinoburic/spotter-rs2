@@ -143,25 +143,36 @@ namespace Spotter.Services
                 IsDeleted = false
             };
 
-            _dbContext.Reviews.Add(review);
-            await _dbContext.SaveChangesAsync();
+            await using var transaction = await _dbContext.Database.BeginTransactionAsync();
+            try
+            {
+                _dbContext.Reviews.Add(review);
+                await _dbContext.SaveChangesAsync();
 
-            await _spotterPointsService.EarnAsync(userId, 10, PointSource.Review, review.Id.ToString(), "Review submitted");
+                await _spotterPointsService.EarnAsync(userId, 10, PointSource.Review, review.Id.ToString(), "Review submitted");
+
+                await _notificationService.CreateAsync(
+                    userId: userId,
+                    title: "Review Submitted",
+                    body: $"You earned 10 Spotter Points for reviewing {eventEntity.Title}.",
+                    type: NotificationType.General,
+                    referenceId: review.Id.ToString()
+                );
+
+                await _badgeService.EvaluateAndAwardAsync(userId);
+
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
 
             var createdReview = await _dbContext.Reviews
                 .Include(r => r.User)
                 .Include(r => r.Event)
                 .FirstAsync(r => r.Id == review.Id);
-
-            await _notificationService.CreateAsync(
-                userId: userId,
-                title: "Review Submitted",
-                body: $"You earned 10 Spotter Points for reviewing {eventEntity.Title}.",
-                type: NotificationType.General,
-                referenceId: review.Id.ToString()
-            );
-
-            await _badgeService.EvaluateAndAwardAsync(userId);
 
             _logger.LogInformation("Review {ReviewId} created successfully", review.Id);
             return _mapper.Map<ReviewResponse>(createdReview);

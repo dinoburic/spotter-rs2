@@ -175,16 +175,27 @@ namespace Spotter.Services
                 IsActive = true
             };
 
-            _dbContext.Users.Add(user);
-            await _dbContext.SaveChangesAsync();
-
-            _dbContext.UserRoles.Add(new UserRole
+            await using var transaction = await _dbContext.Database.BeginTransactionAsync();
+            try
             {
-                UserId = user.Id,
-                RoleId = userRole.Id,
-                DateAssigned = DateTime.UtcNow
-            });
-            await _dbContext.SaveChangesAsync();
+                _dbContext.Users.Add(user);
+                await _dbContext.SaveChangesAsync();
+
+                _dbContext.UserRoles.Add(new UserRole
+                {
+                    UserId = user.Id,
+                    RoleId = userRole.Id,
+                    DateAssigned = DateTime.UtcNow
+                });
+                await _dbContext.SaveChangesAsync();
+
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
 
             return await LoginAsync(new UserLoginRequest
             {

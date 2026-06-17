@@ -55,6 +55,29 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     return DateFormat('EEEE, MMMM d, yyyy · HH:mm').format(date);
   }
 
+  Future<void> _confirmReservation() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirm Reservation'),
+        content: const Text('Are you sure you want to reserve a spot for this event?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Reserve'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      _createReservation();
+    }
+  }
+
   Future<void> _createReservation() async {
     final reservationProvider = context.read<ReservationProvider>();
     final request = ReservationInsertRequest(eventId: widget.eventId);
@@ -380,7 +403,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           child: Row(
             children: [
               OutlinedButton(
-                onPressed: _createReservation,
+                onPressed: _confirmReservation,
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                 ),

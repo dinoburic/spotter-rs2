@@ -112,14 +112,44 @@ class SpotterAdminApp extends StatelessWidget {
             elevation: 2,
           ),
         ),
-        home: Consumer<AuthProvider>(
-          builder: (context, auth, _) {
-            return auth.isLoggedIn
-                ? const DashboardScreen()
-                : const LoginScreen();
-          },
-        ),
+        home: const _AuthWrapper(),
       ),
     );
+  }
+}
+
+class _AuthWrapper extends StatefulWidget {
+  const _AuthWrapper();
+
+  @override
+  State<_AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<_AuthWrapper> {
+  bool _isInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _tryAutoLogin();
+  }
+
+  Future<void> _tryAutoLogin() async {
+    await context.read<AuthProvider>().tryAutoLogin();
+    if (mounted) {
+      setState(() => _isInitialized = true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_isInitialized) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final auth = context.watch<AuthProvider>();
+    return auth.isLoggedIn ? const DashboardScreen() : const LoginScreen();
   }
 }

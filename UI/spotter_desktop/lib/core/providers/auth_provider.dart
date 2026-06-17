@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'base_provider.dart';
 import '../constants/api_constants.dart';
 import '../models/login_request.dart';
@@ -41,6 +42,13 @@ class AuthProvider extends ChangeNotifier {
         return;
       }
 
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('accessToken', response.accessToken);
+      await prefs.setString('refreshToken', response.refreshToken);
+      await prefs.setString('role', response.role);
+      await prefs.setString('username', response.username);
+      await prefs.setInt('userId', response.userId);
+
       _currentUser = response;
       _error = null;
     } catch (e) {
@@ -51,6 +59,31 @@ class AuthProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  Future<void> tryAutoLogin() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('accessToken');
+    final role = prefs.getString('role');
+
+    if (token == null || token.isEmpty) return;
+    if (role == null || role != 'Admin') {
+      await prefs.clear();
+      return;
+    }
+
+    final refreshToken = prefs.getString('refreshToken') ?? '';
+    final username = prefs.getString('username') ?? '';
+    final userId = prefs.getInt('userId') ?? 0;
+
+    _currentUser = LoginResponse(
+      accessToken: token,
+      refreshToken: refreshToken,
+      userId: userId,
+      username: username,
+      role: role,
+    );
+    notifyListeners();
   }
 
   Future<void> logout() async {
@@ -64,6 +97,8 @@ class AuthProvider extends ChangeNotifier {
       );
     } catch (_) {
     } finally {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
       _currentUser = null;
       _error = null;
       notifyListeners();

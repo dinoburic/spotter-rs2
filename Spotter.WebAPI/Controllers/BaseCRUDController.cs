@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Spotter.Services;
 using Spotter.Model.SearchObjects;
@@ -6,6 +7,7 @@ namespace Spotter.WebAPI.Controllers;
 
 [ApiController]
 [Route("[controller]")]
+[Authorize]
 public abstract class BaseCRUDController<TResponse, TSearch, TInsertRequest, TUpdateRequest, TService>
     : BaseReadController<TResponse, TSearch, TService>
     where TSearch : BaseSearchObject

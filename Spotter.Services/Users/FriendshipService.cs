@@ -331,23 +331,29 @@ namespace Spotter.Services
                 .Take(pageSize)
                 .ToListAsync();
 
-            var suggestions = new List<UserSuggestionResponse>();
-            foreach (var user in users)
-            {
-                var mutualCount = await _dbContext.Friendships
-                    .Where(f => f.Status == FriendshipStatus.Accepted &&
-                               (f.RequesterId == user.Id || f.AddresseeId == user.Id))
-                    .CountAsync(f => myFriendIds.Contains(f.RequesterId == user.Id ? f.AddresseeId : f.RequesterId));
+            var userIds = users.Select(u => u.Id).ToList();
 
-                suggestions.Add(new UserSuggestionResponse
+            var mutualCounts = await _dbContext.Friendships
+                .Where(f => f.Status == FriendshipStatus.Accepted &&
+                           (userIds.Contains(f.RequesterId) || userIds.Contains(f.AddresseeId)))
+                .SelectMany(f => new[]
                 {
-                    UserId = user.Id,
-                    FullName = $"{user.FirstName} {user.LastName}",
-                    Username = user.Username,
-                    CityName = user.City?.Name,
-                    MutualFriendsCount = mutualCount
-                });
-            }
+                    new { UserId = f.RequesterId, FriendId = f.AddresseeId },
+                    new { UserId = f.AddresseeId, FriendId = f.RequesterId }
+                })
+                .Where(x => userIds.Contains(x.UserId) && myFriendIds.Contains(x.FriendId))
+                .GroupBy(x => x.UserId)
+                .Select(g => new { UserId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.UserId, x => x.Count);
+
+            var suggestions = users.Select(user => new UserSuggestionResponse
+            {
+                UserId = user.Id,
+                FullName = $"{user.FirstName} {user.LastName}",
+                Username = user.Username,
+                CityName = user.City?.Name,
+                MutualFriendsCount = mutualCounts.GetValueOrDefault(user.Id, 0)
+            }).ToList();
 
             return new PageResult<UserSuggestionResponse>
             {

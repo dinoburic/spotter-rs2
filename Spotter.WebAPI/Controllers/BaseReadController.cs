@@ -8,6 +8,7 @@ namespace Spotter.WebAPI.Controllers;
 
 [ApiController]
 [Route("[controller]")]
+[Authorize]
 public abstract class BaseReadController<TResponse, TSearch, TService> : ControllerBase
     where TSearch : BaseSearchObject
     where TService : IBaseReadService<TResponse, TSearch>

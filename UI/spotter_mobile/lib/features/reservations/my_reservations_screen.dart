@@ -13,12 +13,31 @@ class MyReservationsScreen extends StatefulWidget {
 }
 
 class _MyReservationsScreenState extends State<MyReservationsScreen> {
+  final _scrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ReservationProvider>().loadReservations();
+      context.read<ReservationProvider>().loadReservations(refresh: true);
     });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      final provider = context.read<ReservationProvider>();
+      if (!provider.isLoading && provider.hasMore) {
+        provider.loadReservations();
+      }
+    }
   }
 
   Future<void> _cancelReservation(int id) async {
@@ -26,7 +45,9 @@ class _MyReservationsScreenState extends State<MyReservationsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Cancel Reservation'),
-        content: const Text('Are you sure you want to cancel this reservation?'),
+        content: const Text(
+          'Are you sure you want to cancel this reservation?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -42,8 +63,9 @@ class _MyReservationsScreenState extends State<MyReservationsScreen> {
     );
 
     if (confirmed == true && mounted) {
-      final success =
-          await context.read<ReservationProvider>().cancelReservation(id);
+      final success = await context
+          .read<ReservationProvider>()
+          .cancelReservation(id);
       if (mounted && success) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -75,44 +97,53 @@ class _MyReservationsScreenState extends State<MyReservationsScreen> {
     final reservationProvider = context.watch<ReservationProvider>();
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Reservations'),
-      ),
-      body: reservationProvider.isLoading
+      appBar: AppBar(title: const Text('My Reservations')),
+      body:
+          reservationProvider.reservations.isEmpty &&
+              reservationProvider.isLoading
           ? const Center(child: CircularProgressIndicator())
           : reservationProvider.reservations.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.event_busy,
-                        size: 64,
-                        color: AppColors.textSecondary,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No reservations',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ],
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.event_busy,
+                    size: 64,
+                    color: AppColors.textSecondary,
                   ),
-                )
-              : RefreshIndicator(
-                  onRefresh: () => reservationProvider.loadReservations(),
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: reservationProvider.reservations.length,
-                    itemBuilder: (context, index) {
-                      final reservation =
-                          reservationProvider.reservations[index];
-                      return _buildReservationCard(reservation);
-                    },
+                  const SizedBox(height: 16),
+                  Text(
+                    'No reservations',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 16,
+                    ),
                   ),
-                ),
+                ],
+              ),
+            )
+          : RefreshIndicator(
+              onRefresh: () =>
+                  reservationProvider.loadReservations(refresh: true),
+              child: ListView.builder(
+                controller: _scrollController,
+                padding: const EdgeInsets.all(16),
+                itemCount:
+                    reservationProvider.reservations.length +
+                    (reservationProvider.isLoading ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (index >= reservationProvider.reservations.length) {
+                    return const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  final reservation = reservationProvider.reservations[index];
+                  return _buildReservationCard(reservation);
+                },
+              ),
+            ),
     );
   }
 
@@ -145,7 +176,7 @@ class _MyReservationsScreenState extends State<MyReservationsScreen> {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha:0.1),
+                    color: statusColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(4),
                     border: Border.all(color: statusColor),
                   ),
@@ -195,9 +226,7 @@ class _MyReservationsScreenState extends State<MyReservationsScreen> {
                 alignment: Alignment.centerRight,
                 child: TextButton(
                   onPressed: () => _cancelReservation(reservation.id),
-                  style: TextButton.styleFrom(
-                    foregroundColor: AppColors.error,
-                  ),
+                  style: TextButton.styleFrom(foregroundColor: AppColors.error),
                   child: const Text('Cancel'),
                 ),
               ),

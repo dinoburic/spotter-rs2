@@ -32,6 +32,7 @@ namespace Spotter.Services
                 {
                     using var scope = _serviceProvider.CreateScope();
                     var dbContext = scope.ServiceProvider.GetRequiredService<SpotterDbContext>();
+                    var waitlistService = scope.ServiceProvider.GetRequiredService<IWaitlistService>();
 
                     var cutoff = DateTime.UtcNow.Subtract(PendingTimeout);
                     var expiredOrders = await dbContext.Orders
@@ -41,6 +42,8 @@ namespace Spotter.Services
 
                     if (expiredOrders.Count == 0)
                         continue;
+
+                    var ticketTypeIdsToNotify = new List<int>();
 
                     foreach (var order in expiredOrders)
                     {
@@ -53,6 +56,7 @@ namespace Spotter.Services
                             if (ticketType != null)
                             {
                                 ticketType.SoldQuantity = Math.Max(0, ticketType.SoldQuantity - item.Quantity);
+                                ticketTypeIdsToNotify.Add(item.TicketTypeId);
                             }
                         }
 
@@ -73,6 +77,12 @@ namespace Spotter.Services
                     }
 
                     await dbContext.SaveChangesAsync(stoppingToken);
+
+                    foreach (var ticketTypeId in ticketTypeIdsToNotify.Distinct())
+                    {
+                        await waitlistService.NotifyNextInLineAsync(ticketTypeId);
+                    }
+
                     _logger.LogInformation("Cancelled {Count} expired pending orders", expiredOrders.Count);
                 }
                 catch (OperationCanceledException)

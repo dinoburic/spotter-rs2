@@ -14,12 +14,31 @@ class FavoritesScreen extends StatefulWidget {
 }
 
 class _FavoritesScreenState extends State<FavoritesScreen> {
+  final _scrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<FavoriteProvider>().loadFavorites();
+      context.read<FavoriteProvider>().loadFavorites(refresh: true);
     });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      final provider = context.read<FavoriteProvider>();
+      if (!provider.isLoading && provider.hasMore) {
+        provider.loadFavorites();
+      }
+    }
   }
 
   Future<void> _removeFavorite(int eventId) async {
@@ -27,7 +46,9 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Remove Favorite'),
-        content: const Text('Are you sure you want to remove this event from your favorites?'),
+        content: const Text(
+          'Are you sure you want to remove this event from your favorites?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -51,7 +72,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   Widget build(BuildContext context) {
     final favoriteProvider = context.watch<FavoriteProvider>();
 
-    if (favoriteProvider.isLoading) {
+    if (favoriteProvider.favorites.isEmpty && favoriteProvider.isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
 
@@ -71,8 +92,8 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
               Text(
                 'No favorites yet',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
+                  color: AppColors.textSecondary,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
@@ -87,11 +108,20 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     }
 
     return RefreshIndicator(
-      onRefresh: () => favoriteProvider.loadFavorites(),
+      onRefresh: () => favoriteProvider.loadFavorites(refresh: true),
       child: ListView.builder(
+        controller: _scrollController,
         padding: const EdgeInsets.all(16),
-        itemCount: favoriteProvider.favorites.length,
+        itemCount:
+            favoriteProvider.favorites.length +
+            (favoriteProvider.isLoading ? 1 : 0),
         itemBuilder: (context, index) {
+          if (index >= favoriteProvider.favorites.length) {
+            return const Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(child: CircularProgressIndicator()),
+            );
+          }
           final favorite = favoriteProvider.favorites[index];
           return Card(
             margin: const EdgeInsets.only(bottom: 12),
@@ -101,7 +131,8 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => EventDetailScreen(eventId: favorite.eventId),
+                    builder: (_) =>
+                        EventDetailScreen(eventId: favorite.eventId),
                   ),
                 );
               },
@@ -115,17 +146,21 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                             imageUrl: favorite.eventCoverImageUrl!,
                             fit: BoxFit.cover,
                             errorWidget: (_, __, ___) => Container(
-                              color: AppColors.fromHex(favorite.categoryColorHex)
-                                  .withValues(alpha:0.2),
+                              color: AppColors.fromHex(
+                                favorite.categoryColorHex,
+                              ).withValues(alpha: 0.2),
                               child: const Icon(Icons.event),
                             ),
                           )
                         : Container(
-                            color: AppColors.fromHex(favorite.categoryColorHex)
-                                .withValues(alpha:0.2),
+                            color: AppColors.fromHex(
+                              favorite.categoryColorHex,
+                            ).withValues(alpha: 0.2),
                             child: Icon(
                               Icons.event,
-                              color: AppColors.fromHex(favorite.categoryColorHex),
+                              color: AppColors.fromHex(
+                                favorite.categoryColorHex,
+                              ),
                             ),
                           ),
                   ),
@@ -141,7 +176,9 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: AppColors.fromHex(favorite.categoryColorHex),
+                              color: AppColors.fromHex(
+                                favorite.categoryColorHex,
+                              ),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
@@ -156,16 +193,15 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                           const SizedBox(height: 4),
                           Text(
                             favorite.eventTitle,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                            ),
+                            style: const TextStyle(fontWeight: FontWeight.bold),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            DateFormat('EEE, MMM d · HH:mm')
-                                .format(favorite.eventStartsAt),
+                            DateFormat(
+                              'EEE, MMM d · HH:mm',
+                            ).format(favorite.eventStartsAt),
                             style: TextStyle(
                               color: AppColors.textSecondary,
                               fontSize: 12,

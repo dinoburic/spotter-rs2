@@ -28,7 +28,7 @@ namespace Spotter.Worker.Services
             var query = Uri.EscapeDataString($"{address}, {city}");
     var url = $"https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input={query}&inputtype=textquery&fields=geometry&key={_apiKey}";
 
-    var client = _httpClientFactory.CreateClient();
+    var client = _httpClientFactory.CreateClient("Geocoding");
     var response = await client.GetAsync(url);
     response.EnsureSuccessStatusCode();
 

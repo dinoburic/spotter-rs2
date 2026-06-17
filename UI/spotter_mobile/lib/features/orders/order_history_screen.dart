@@ -14,12 +14,31 @@ class OrderHistoryScreen extends StatefulWidget {
 }
 
 class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
+  final _scrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<OrderProvider>().loadOrders();
+      context.read<OrderProvider>().loadOrders(refresh: true);
     });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      final provider = context.read<OrderProvider>();
+      if (!provider.isLoading && provider.hasMore) {
+        provider.loadOrders();
+      }
+    }
   }
 
   Color _getStatusColor(int status) {
@@ -40,43 +59,50 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
     final orderProvider = context.watch<OrderProvider>();
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Orders'),
-      ),
-      body: orderProvider.isLoading
+      appBar: AppBar(title: const Text('My Orders')),
+      body: orderProvider.orders.isEmpty && orderProvider.isLoading
           ? const Center(child: CircularProgressIndicator())
           : orderProvider.orders.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.receipt_long_outlined,
-                        size: 64,
-                        color: AppColors.textSecondary,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No orders yet',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ],
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.receipt_long_outlined,
+                    size: 64,
+                    color: AppColors.textSecondary,
                   ),
-                )
-              : RefreshIndicator(
-                  onRefresh: () => orderProvider.loadOrders(),
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: orderProvider.orders.length,
-                    itemBuilder: (context, index) {
-                      final order = orderProvider.orders[index];
-                      return _buildOrderCard(order);
-                    },
+                  const SizedBox(height: 16),
+                  Text(
+                    'No orders yet',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 16,
+                    ),
                   ),
-                ),
+                ],
+              ),
+            )
+          : RefreshIndicator(
+              onRefresh: () => orderProvider.loadOrders(refresh: true),
+              child: ListView.builder(
+                controller: _scrollController,
+                padding: const EdgeInsets.all(16),
+                itemCount:
+                    orderProvider.orders.length +
+                    (orderProvider.isLoading ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (index >= orderProvider.orders.length) {
+                    return const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  final order = orderProvider.orders[index];
+                  return _buildOrderCard(order);
+                },
+              ),
+            ),
     );
   }
 
@@ -119,7 +145,7 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha:0.1),
+                      color: statusColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(4),
                       border: Border.all(color: statusColor),
                     ),
@@ -142,8 +168,9 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        DateFormat('MMM d, yyyy · HH:mm')
-                            .format(order.createdAt),
+                        DateFormat(
+                          'MMM d, yyyy · HH:mm',
+                        ).format(order.createdAt),
                         style: TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 10,

@@ -18,20 +18,46 @@ class MyTicketsScreen extends StatefulWidget {
 class _MyTicketsScreenState extends State<MyTicketsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final _activeScrollController = ScrollController();
+  final _usedScrollController = ScrollController();
+  final _cancelledScrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _activeScrollController.addListener(
+      () => _onScroll(0, _activeScrollController),
+    );
+    _usedScrollController.addListener(
+      () => _onScroll(1, _usedScrollController),
+    );
+    _cancelledScrollController.addListener(
+      () => _onScroll(2, _cancelledScrollController),
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<TicketProvider>().loadTickets();
+      context.read<TicketProvider>().loadTickets(refresh: true);
     });
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _activeScrollController.dispose();
+    _usedScrollController.dispose();
+    _cancelledScrollController.dispose();
     super.dispose();
+  }
+
+  void _onScroll(int status, ScrollController controller) {
+    if (controller.position.pixels >=
+        controller.position.maxScrollExtent - 200) {
+      final provider = context.read<TicketProvider>();
+      if (!provider.isLoadingStatus(status) &&
+          provider.hasMoreForStatus(status)) {
+        provider.loadTicketsByStatus(status);
+      }
+    }
   }
 
   @override
@@ -46,24 +72,33 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
           unselectedLabelColor: AppColors.textSecondary,
           indicatorColor: AppColors.primary,
           tabs: [
-            Tab(
-              text: 'Active (${ticketProvider.activeTickets.length})',
-            ),
-            Tab(
-              text: 'Used (${ticketProvider.usedTickets.length})',
-            ),
-            Tab(
-              text: 'Cancelled (${ticketProvider.cancelledTickets.length})',
-            ),
+            Tab(text: 'Active (${ticketProvider.activeTickets.length})'),
+            Tab(text: 'Used (${ticketProvider.usedTickets.length})'),
+            Tab(text: 'Cancelled (${ticketProvider.cancelledTickets.length})'),
           ],
         ),
         Expanded(
           child: TabBarView(
             controller: _tabController,
             children: [
-              _buildTicketList(ticketProvider.activeTickets, ticketProvider),
-              _buildTicketList(ticketProvider.usedTickets, ticketProvider),
-              _buildTicketList(ticketProvider.cancelledTickets, ticketProvider),
+              _buildTicketList(
+                ticketProvider.activeTickets,
+                ticketProvider,
+                0,
+                _activeScrollController,
+              ),
+              _buildTicketList(
+                ticketProvider.usedTickets,
+                ticketProvider,
+                1,
+                _usedScrollController,
+              ),
+              _buildTicketList(
+                ticketProvider.cancelledTickets,
+                ticketProvider,
+                2,
+                _cancelledScrollController,
+              ),
             ],
           ),
         ),
@@ -72,9 +107,7 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
 
     if (widget.standalone) {
       return Scaffold(
-        appBar: AppBar(
-          title: const Text('My Tickets'),
-        ),
+        appBar: AppBar(title: const Text('My Tickets')),
         body: content,
       );
     }
@@ -83,8 +116,12 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
   }
 
   Widget _buildTicketList(
-      List<TicketResponse> tickets, TicketProvider provider) {
-    if (provider.isLoading) {
+    List<TicketResponse> tickets,
+    TicketProvider provider,
+    int status,
+    ScrollController controller,
+  ) {
+    if (tickets.isEmpty && provider.isLoadingStatus(status)) {
       return const Center(child: CircularProgressIndicator());
     }
 
@@ -101,10 +138,7 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
             const SizedBox(height: 16),
             Text(
               'No tickets',
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 16,
-              ),
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
             ),
           ],
         ),
@@ -112,11 +146,18 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
     }
 
     return RefreshIndicator(
-      onRefresh: () => provider.loadTickets(),
+      onRefresh: () => provider.loadTicketsByStatus(status, refresh: true),
       child: ListView.builder(
+        controller: controller,
         padding: const EdgeInsets.all(16),
-        itemCount: tickets.length,
+        itemCount: tickets.length + (provider.isLoadingStatus(status) ? 1 : 0),
         itemBuilder: (context, index) {
+          if (index >= tickets.length) {
+            return const Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(child: CircularProgressIndicator()),
+            );
+          }
           final ticket = tickets[index];
           return _buildTicketCard(ticket);
         },
@@ -161,9 +202,7 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
               const SizedBox(height: 8),
               Text(
                 ticket.ticketTypeName,
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                ),
+                style: TextStyle(color: AppColors.textSecondary),
               ),
               const SizedBox(height: 4),
               Row(
@@ -212,7 +251,7 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha:0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(4),
         border: Border.all(color: color),
       ),

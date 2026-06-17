@@ -27,7 +27,7 @@ namespace Spotter.Services
         private readonly ISpotterPointsService _spotterPointsService;
         private readonly IBadgeService _badgeService;
         private readonly IWaitlistService _waitlistService;
-
+        private readonly IStripeService _stripeService;
         private readonly IRabbitMqPublisher _rabbitMqPublisher;
         private readonly ILogger<OrderService> _logger;
 
@@ -42,6 +42,7 @@ namespace Spotter.Services
             ISpotterPointsService spotterPointsService,
             IBadgeService badgeService,
             IWaitlistService waitlistService,
+            IStripeService stripeService,
             IRabbitMqPublisher rabbitMqPublisher,
             ILogger<OrderService> logger)
         {
@@ -56,6 +57,7 @@ namespace Spotter.Services
             _spotterPointsService = spotterPointsService;
             _badgeService = badgeService;
             _waitlistService = waitlistService;
+            _stripeService = stripeService;
             _logger = logger;
         }
 
@@ -375,6 +377,12 @@ namespace Spotter.Services
             {
                 _logger.LogWarning("Order {OrderId} not found", id);
                 throw new NotFoundException("Order not found.");
+            }
+
+            if (!string.IsNullOrEmpty(order.StripePaymentIntentId))
+            {
+                await _stripeService.RefundPaymentAsync(order.StripePaymentIntentId);
+                _logger.LogInformation("Stripe refund initiated for order {OrderId}", id);
             }
 
             await using var transaction = await _dbContext.Database.BeginTransactionAsync();

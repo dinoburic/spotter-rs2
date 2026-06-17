@@ -12,6 +12,9 @@ class NotificationProvider extends ChangeNotifier {
   final SignalRService _signalRService = SignalRService();
   List<NotificationResponse> notifications = [];
   int unreadCount = 0;
+  int currentPage = 1;
+  final int pageSize = 20;
+  bool hasMore = true;
   bool isLoading = false;
   String? error;
 
@@ -48,8 +51,18 @@ class NotificationProvider extends ChangeNotifier {
     stopRealtime();
   }
 
-  Future<void> loadNotifications() async {
+  Future<void> loadNotifications({bool refresh = false}) async {
     if (_authProvider?.token == null) return;
+    if (isLoading) return;
+
+    if (refresh) {
+      currentPage = 1;
+      hasMore = true;
+      notifications.clear();
+    }
+
+    if (!hasMore) return;
+
     isLoading = true;
     error = null;
     notifyListeners();
@@ -57,14 +70,18 @@ class NotificationProvider extends ChangeNotifier {
     try {
       final result = await _baseProvider.get<PageResult<NotificationResponse>>(
         ApiConstants.notifications,
-        queryParameters: {'page': 1, 'pageSize': 100},
+        queryParameters: {'page': currentPage, 'pageSize': pageSize},
         fromJson: (json) => PageResult.fromJson(
           json,
           (item) => NotificationResponse.fromJson(item),
         ),
       );
-      notifications = result.items;
-      unreadCount = notifications.where((n) => !n.isRead).length;
+      notifications.addAll(result.items);
+      hasMore = result.totalCount == null
+          ? result.items.length >= pageSize
+          : notifications.length < result.totalCount!;
+      currentPage++;
+      await _loadUnreadCount(notify: false);
     } catch (e) {
       error = e.toString().replaceAll('Exception: ', '');
     } finally {
@@ -75,13 +92,19 @@ class NotificationProvider extends ChangeNotifier {
 
   Future<void> loadUnreadCount() async {
     if (_authProvider?.token == null) return;
+    await _loadUnreadCount();
+  }
+
+  Future<void> _loadUnreadCount({bool notify = true}) async {
     try {
       final result = await _baseProvider.get<Map<String, dynamic>>(
         '${ApiConstants.notifications}/unread-count',
         fromJson: (json) => json as Map<String, dynamic>,
       );
       unreadCount = result['count'] as int? ?? 0;
-      notifyListeners();
+      if (notify) {
+        notifyListeners();
+      }
     } catch (_) {}
   }
 

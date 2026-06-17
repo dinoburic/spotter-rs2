@@ -45,6 +45,12 @@ namespace Spotter.Worker.Consumers
                         exclusive: false,
                         autoDelete: false);
 
+                    await _channel.QueueDeclareAsync(
+                        queue: QueueNames.GeocodingDlq,
+                        durable: true,
+                        exclusive: false,
+                        autoDelete: false);
+
                     var consumer = new AsyncEventingBasicConsumer(_channel);
                     consumer.ReceivedAsync += async (_, ea) =>
                     {
@@ -93,12 +99,28 @@ namespace Spotter.Worker.Consumers
                             var retryCount = GetRetryCount(ea.BasicProperties);
                             if (retryCount >= MaxRetryCount)
                             {
-                                _logger.LogError(ex, "Message discarded after {MaxRetries} retries for venue {VenueId}", MaxRetryCount, message?.VenueId);
+                                _logger.LogError(ex, "Message discarded after {MaxRetries} retries for venue {VenueId}. Publishing to DLQ.", MaxRetryCount, message?.VenueId);
+                                var dlqProperties = new BasicProperties
+                                {
+                                    Headers = ea.BasicProperties.Headers != null
+                                        ? new Dictionary<string, object?>(ea.BasicProperties.Headers)
+                                        : new Dictionary<string, object?>()
+                                };
+                                await _channel.BasicPublishAsync(
+                                    exchange: "",
+                                    routingKey: QueueNames.GeocodingDlq,
+                                    mandatory: false,
+                                    basicProperties: dlqProperties,
+                                    body: ea.Body
+                                );
                                 await _channel.BasicAckAsync(ea.DeliveryTag, false);
                             }
                             else
                             {
-                                _logger.LogWarning(ex, "Retry {Attempt} for venue {VenueId}", retryCount + 1, message?.VenueId);
+                                var delayMs = (int)Math.Pow(2, retryCount) * 1000;
+                                _logger.LogWarning(ex, "Retry {Attempt} for venue {VenueId} after {Delay}ms delay", retryCount + 1, message?.VenueId, delayMs);
+
+                                await Task.Delay(delayMs, stoppingToken);
 
                                 var properties = new BasicProperties
                                 {

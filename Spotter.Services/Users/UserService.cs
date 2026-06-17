@@ -131,7 +131,7 @@ namespace Spotter.Services
             _logger.LogInformation("User {UserId} soft deleted successfully", id);
         }
 
-        public async Task<UserSensitveResponse?> GetByUsernameAsync(string username)
+        public async Task<UserSensitiveResponse?> GetByUsernameAsync(string username)
         {
             var user = await _dbContext.Users
                 .AsNoTracking()
@@ -142,7 +142,7 @@ namespace Spotter.Services
             if (user == null)
                 return null;
 
-            var response = _mapper.Map<UserSensitveResponse>(user);
+            var response = _mapper.Map<UserSensitiveResponse>(user);
             response.Role = user.UserRoles.FirstOrDefault()?.Role.Name;
             return response;
         }

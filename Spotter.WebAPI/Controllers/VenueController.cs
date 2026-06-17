@@ -29,6 +29,7 @@ namespace Spotter.WebAPI.Controllers
         }
 
         [HttpGet("{id}")]
+        [AllowAnonymous]
         public async Task<ActionResult<VenueResponse>> GetById(int id)
         {
             var result = await _venueService.GetByIdAsync(id);

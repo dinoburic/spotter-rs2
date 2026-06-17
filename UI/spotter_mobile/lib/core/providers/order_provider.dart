@@ -8,12 +8,25 @@ import '../models/page_result.dart';
 class OrderProvider extends ChangeNotifier {
   final BaseProvider _baseProvider;
   List<OrderResponse> orders = [];
+  int currentPage = 1;
+  final int pageSize = 20;
+  bool hasMore = true;
   bool isLoading = false;
   String? error;
 
   OrderProvider(this._baseProvider);
 
-  Future<void> loadOrders() async {
+  Future<void> loadOrders({bool refresh = false}) async {
+    if (isLoading) return;
+
+    if (refresh) {
+      currentPage = 1;
+      hasMore = true;
+      orders.clear();
+    }
+
+    if (!hasMore) return;
+
     isLoading = true;
     error = null;
     notifyListeners();
@@ -21,13 +34,15 @@ class OrderProvider extends ChangeNotifier {
     try {
       final result = await _baseProvider.get<PageResult<OrderResponse>>(
         ApiConstants.orders,
-        queryParameters: {'page': 1, 'pageSize': 100},
-        fromJson: (json) => PageResult.fromJson(
-          json,
-          (item) => OrderResponse.fromJson(item),
-        ),
+        queryParameters: {'page': currentPage, 'pageSize': pageSize},
+        fromJson: (json) =>
+            PageResult.fromJson(json, (item) => OrderResponse.fromJson(item)),
       );
-      orders = result.items;
+      orders.addAll(result.items);
+      hasMore = result.totalCount == null
+          ? result.items.length >= pageSize
+          : orders.length < result.totalCount!;
+      currentPage++;
     } catch (e) {
       error = e.toString().replaceAll('Exception: ', '');
     } finally {

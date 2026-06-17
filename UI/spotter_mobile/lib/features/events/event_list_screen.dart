@@ -32,7 +32,7 @@ class _EventListScreenState extends State<EventListScreen> {
       final eventProvider = context.read<EventProvider>();
       eventProvider.loadEvents(refresh: true);
       eventProvider.loadCategories();
-      context.read<FavoriteProvider>().loadFavorites();
+      context.read<FavoriteProvider>().loadFavorites(refresh: true);
       context.read<RecommendationProvider>().loadRecommendations();
     });
   }
@@ -58,7 +58,9 @@ class _EventListScreenState extends State<EventListScreen> {
   void _onSearchChanged(String value) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 400), () {
-      context.read<EventProvider>().setSearchQuery(value.isEmpty ? null : value);
+      context.read<EventProvider>().setSearchQuery(
+        value.isEmpty ? null : value,
+      );
     });
   }
 
@@ -142,30 +144,44 @@ class _EventListScreenState extends State<EventListScreen> {
                       Consumer<RecommendationProvider>(
                         builder: (context, recProvider, _) {
                           if (recProvider.recommendations.isEmpty) {
-                            return const SliverToBoxAdapter(child: SizedBox.shrink());
+                            return const SliverToBoxAdapter(
+                              child: SizedBox.shrink(),
+                            );
                           }
                           return SliverToBoxAdapter(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Padding(
-                                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                                  padding: const EdgeInsets.fromLTRB(
+                                    16,
+                                    8,
+                                    16,
+                                    8,
+                                  ),
                                   child: Text(
                                     'Recommended for you',
-                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(fontWeight: FontWeight.bold),
                                   ),
                                 ),
                                 SizedBox(
                                   height: 220,
                                   child: ListView.builder(
                                     scrollDirection: Axis.horizontal,
-                                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                                    itemCount: recProvider.recommendations.length,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                    ),
+                                    itemCount:
+                                        recProvider.recommendations.length,
                                     itemBuilder: (context, index) {
-                                      final rec = recProvider.recommendations[index];
-                                      return _RecommendationCard(recommendation: rec);
+                                      final rec =
+                                          recProvider.recommendations[index];
+                                      return _RecommendationCard(
+                                        recommendation: rec,
+                                      );
                                     },
                                   ),
                                 ),
@@ -193,13 +209,15 @@ class _EventListScreenState extends State<EventListScreen> {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (_) => EventDetailScreen(eventId: event.id),
+                                    builder: (_) =>
+                                        EventDetailScreen(eventId: event.id),
                                   ),
                                 );
                               },
                             );
                           },
-                          childCount: eventProvider.items.length +
+                          childCount:
+                              eventProvider.items.length +
                               (eventProvider.isLoading ? 1 : 0),
                         ),
                       ),
@@ -273,8 +291,9 @@ class _RecommendationCard extends StatelessWidget {
                   fit: BoxFit.cover,
                   errorWidget: (_, __, ___) => Container(
                     height: 110,
-                    color: AppColors.fromHex(recommendation.categoryColorHex)
-                        .withValues(alpha:0.3),
+                    color: AppColors.fromHex(
+                      recommendation.categoryColorHex,
+                    ).withValues(alpha: 0.3),
                     child: const Icon(Icons.event),
                   ),
                 ),
@@ -298,7 +317,9 @@ class _RecommendationCard extends StatelessWidget {
                       recommendation.explanation,
                       style: TextStyle(
                         fontSize: 10,
-                        color: AppColors.fromHex(recommendation.categoryColorHex),
+                        color: AppColors.fromHex(
+                          recommendation.categoryColorHex,
+                        ),
                         fontStyle: FontStyle.italic,
                       ),
                       maxLines: 2,

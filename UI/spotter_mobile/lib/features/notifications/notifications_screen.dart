@@ -16,12 +16,31 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
+  final _scrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<NotificationProvider>().loadNotifications();
+      context.read<NotificationProvider>().loadNotifications(refresh: true);
     });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      final provider = context.read<NotificationProvider>();
+      if (!provider.isLoading && provider.hasMore) {
+        provider.loadNotifications();
+      }
+    }
   }
 
   IconData _getIconForType(int type) {
@@ -49,7 +68,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
-  void _onNotificationTap(NotificationResponse notification, NotificationProvider provider) {
+  void _onNotificationTap(
+    NotificationResponse notification,
+    NotificationProvider provider,
+  ) {
     if (!notification.isRead) {
       provider.markAsRead(notification.id);
     }
@@ -60,7 +82,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => EventDetailScreen(eventId: notification.referenceId!),
+              builder: (_) =>
+                  EventDetailScreen(eventId: notification.referenceId!),
             ),
           );
           break;
@@ -69,7 +92,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => OrderDetailScreen(orderId: notification.referenceId!),
+              builder: (_) =>
+                  OrderDetailScreen(orderId: notification.referenceId!),
             ),
           );
           break;
@@ -77,9 +101,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         case 3:
           Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (_) => const MyReservationsScreen(),
-            ),
+            MaterialPageRoute(builder: (_) => const MyReservationsScreen()),
           );
           break;
         default:
@@ -103,42 +125,56 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             ),
         ],
       ),
-      body: notificationProvider.isLoading
+      body:
+          notificationProvider.notifications.isEmpty &&
+              notificationProvider.isLoading
           ? const Center(child: CircularProgressIndicator())
           : notificationProvider.notifications.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.notifications_none,
-                        size: 64,
-                        color: AppColors.textSecondary,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No notifications',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ],
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.notifications_none,
+                    size: 64,
+                    color: AppColors.textSecondary,
                   ),
-                )
-              : RefreshIndicator(
-                  onRefresh: () => notificationProvider.loadNotifications(),
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: notificationProvider.notifications.length,
-                    itemBuilder: (context, index) {
-                      final notification =
-                          notificationProvider.notifications[index];
-                      return _buildNotificationCard(
-                          notification, notificationProvider);
-                    },
+                  const SizedBox(height: 16),
+                  Text(
+                    'No notifications',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 16,
+                    ),
                   ),
-                ),
+                ],
+              ),
+            )
+          : RefreshIndicator(
+              onRefresh: () =>
+                  notificationProvider.loadNotifications(refresh: true),
+              child: ListView.builder(
+                controller: _scrollController,
+                padding: const EdgeInsets.all(16),
+                itemCount:
+                    notificationProvider.notifications.length +
+                    (notificationProvider.isLoading ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (index >= notificationProvider.notifications.length) {
+                    return const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  final notification =
+                      notificationProvider.notifications[index];
+                  return _buildNotificationCard(
+                    notification,
+                    notificationProvider,
+                  );
+                },
+              ),
+            ),
     );
   }
 
@@ -150,7 +186,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       margin: const EdgeInsets.only(bottom: 8),
       color: notification.isRead
           ? null
-          : AppColors.primary.withValues(alpha:0.05),
+          : AppColors.primary.withValues(alpha: 0.05),
       child: InkWell(
         onTap: () => _onNotificationTap(notification, provider),
         borderRadius: BorderRadius.circular(12),
@@ -162,7 +198,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha:0.1),
+                  color: AppColors.primary.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(

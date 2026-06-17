@@ -101,16 +101,20 @@ namespace Spotter.Services
         public async Task<SpotterPointsResponse> EarnAsync(int userId, int delta, PointSource source, string? referenceId = null, string? description = null)
         {
             _logger.LogInformation("Earning {Delta} points for user {UserId} from {Source}", delta, userId, source);
-            var user = await _dbContext.Users.FindAsync(userId);
-            if (user == null)
-            {
-                _logger.LogWarning("User {UserId} not found", userId);
-                throw new NotFoundException("User not found.");
-            }
 
             if (delta <= 0)
             {
                 throw new ClientException("Delta must be positive for earning points.");
+            }
+
+            var rowsAffected = await _dbContext.Database.ExecuteSqlRawAsync(
+                @"UPDATE Users SET SpotterPointsBalance = SpotterPointsBalance + {0} WHERE Id = {1}",
+                delta, userId);
+
+            if (rowsAffected == 0)
+            {
+                _logger.LogWarning("User {UserId} not found", userId);
+                throw new NotFoundException("User not found.");
             }
 
             var entry = new SpotterPoints
@@ -124,7 +128,6 @@ namespace Spotter.Services
             };
 
             _dbContext.SpotterPoints.Add(entry);
-            user.SpotterPointsBalance += delta;
             await _dbContext.SaveChangesAsync();
 
             _logger.LogInformation("User {UserId} earned {Delta} points", userId, delta);

@@ -8,12 +8,25 @@ class FavoriteProvider extends ChangeNotifier {
   final BaseProvider _baseProvider;
   List<FavoriteResponse> favorites = [];
   Set<int> favoriteEventIds = {};
+  int currentPage = 1;
+  final int pageSize = 20;
+  bool hasMore = true;
   bool isLoading = false;
   String? error;
 
   FavoriteProvider(this._baseProvider);
 
-  Future<void> loadFavorites() async {
+  Future<void> loadFavorites({bool refresh = false}) async {
+    if (isLoading) return;
+
+    if (refresh) {
+      currentPage = 1;
+      hasMore = true;
+      favorites.clear();
+    }
+
+    if (!hasMore) return;
+
     isLoading = true;
     error = null;
     notifyListeners();
@@ -21,13 +34,17 @@ class FavoriteProvider extends ChangeNotifier {
     try {
       final result = await _baseProvider.get<PageResult<FavoriteResponse>>(
         ApiConstants.favorites,
-        queryParameters: {'page': 1, 'pageSize': 100},
+        queryParameters: {'page': currentPage, 'pageSize': pageSize},
         fromJson: (json) => PageResult.fromJson(
           json,
           (item) => FavoriteResponse.fromJson(item),
         ),
       );
-      favorites = result.items;
+      favorites.addAll(result.items);
+      hasMore = result.totalCount == null
+          ? result.items.length >= pageSize
+          : favorites.length < result.totalCount!;
+      currentPage++;
       favoriteEventIds = favorites.map((f) => f.eventId).toSet();
     } catch (e) {
       error = e.toString().replaceAll('Exception: ', '');
@@ -50,7 +67,7 @@ class FavoriteProvider extends ChangeNotifier {
       } else {
         await _baseProvider.postAction('${ApiConstants.favorites}/$eventId');
         favoriteEventIds.add(eventId);
-        await loadFavorites();
+        await loadFavorites(refresh: true);
       }
       notifyListeners();
       return true;

@@ -32,7 +32,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<FavoriteProvider>().loadFavorites();
+      context.read<FavoriteProvider>().loadFavorites(refresh: true);
       final notificationProvider = context.read<NotificationProvider>();
       notificationProvider.loadUnreadCount();
       notificationProvider.startPolling();
@@ -93,10 +93,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
+      body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) {

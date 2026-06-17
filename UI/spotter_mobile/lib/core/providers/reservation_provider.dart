@@ -8,12 +8,25 @@ import '../models/page_result.dart';
 class ReservationProvider extends ChangeNotifier {
   final BaseProvider _baseProvider;
   List<ReservationResponse> reservations = [];
+  int currentPage = 1;
+  final int pageSize = 20;
+  bool hasMore = true;
   bool isLoading = false;
   String? error;
 
   ReservationProvider(this._baseProvider);
 
-  Future<void> loadReservations() async {
+  Future<void> loadReservations({bool refresh = false}) async {
+    if (isLoading) return;
+
+    if (refresh) {
+      currentPage = 1;
+      hasMore = true;
+      reservations.clear();
+    }
+
+    if (!hasMore) return;
+
     isLoading = true;
     error = null;
     notifyListeners();
@@ -21,13 +34,17 @@ class ReservationProvider extends ChangeNotifier {
     try {
       final result = await _baseProvider.get<PageResult<ReservationResponse>>(
         ApiConstants.reservations,
-        queryParameters: {'page': 1, 'pageSize': 100},
+        queryParameters: {'page': currentPage, 'pageSize': pageSize},
         fromJson: (json) => PageResult.fromJson(
           json,
           (item) => ReservationResponse.fromJson(item),
         ),
       );
-      reservations = result.items;
+      reservations.addAll(result.items);
+      hasMore = result.totalCount == null
+          ? result.items.length >= pageSize
+          : reservations.length < result.totalCount!;
+      currentPage++;
     } catch (e) {
       error = e.toString().replaceAll('Exception: ', '');
     } finally {
@@ -36,7 +53,9 @@ class ReservationProvider extends ChangeNotifier {
     }
   }
 
-  Future<ReservationResponse?> createReservation(ReservationInsertRequest request) async {
+  Future<ReservationResponse?> createReservation(
+    ReservationInsertRequest request,
+  ) async {
     isLoading = true;
     error = null;
     notifyListeners();
@@ -67,7 +86,8 @@ class ReservationProvider extends ChangeNotifier {
 
     try {
       await _baseProvider.postAction('${ApiConstants.reservations}/$id/cancel');
-      await loadReservations();
+      isLoading = false;
+      await loadReservations(refresh: true);
       return true;
     } catch (e) {
       error = e.toString().replaceAll('Exception: ', '');

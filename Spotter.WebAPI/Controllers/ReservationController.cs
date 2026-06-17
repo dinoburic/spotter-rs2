@@ -64,9 +64,4 @@ namespace Spotter.WebAPI.Controllers
             return Ok(result);
         }
     }
-
-    public class AuditNoteRequest
-    {
-        public string? AuditNote { get; set; }
-    }
 }

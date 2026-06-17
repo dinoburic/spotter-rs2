@@ -43,6 +43,12 @@ namespace Spotter.Worker.Consumers
                         exclusive: false,
                         autoDelete: false);
 
+                    await _channel.QueueDeclareAsync(
+                        queue: QueueNames.EmailDlq,
+                        durable: true,
+                        exclusive: false,
+                        autoDelete: false);
+
                     var consumer = new AsyncEventingBasicConsumer(_channel);
                     consumer.ReceivedAsync += async (_, ea) =>
                     {
@@ -69,12 +75,28 @@ namespace Spotter.Worker.Consumers
                             var retryCount = GetRetryCount(ea.BasicProperties);
                             if (retryCount >= MaxRetryCount)
                             {
-                                _logger.LogError(ex, "Email to {To} discarded after {MaxRetries} retries", message.To, MaxRetryCount);
+                                _logger.LogError(ex, "Email to {To} discarded after {MaxRetries} retries. Publishing to DLQ.", message.To, MaxRetryCount);
+                                var dlqProperties = new BasicProperties
+                                {
+                                    Headers = ea.BasicProperties.Headers != null
+                                        ? new Dictionary<string, object?>(ea.BasicProperties.Headers)
+                                        : new Dictionary<string, object?>()
+                                };
+                                await _channel.BasicPublishAsync(
+                                    exchange: "",
+                                    routingKey: QueueNames.EmailDlq,
+                                    mandatory: false,
+                                    basicProperties: dlqProperties,
+                                    body: ea.Body
+                                );
                                 await _channel.BasicAckAsync(ea.DeliveryTag, false);
                             }
                             else
                             {
-                                _logger.LogWarning(ex, "Retry {Attempt} for email to {To}", retryCount + 1, message.To);
+                                var delayMs = (int)Math.Pow(2, retryCount) * 1000;
+                                _logger.LogWarning(ex, "Retry {Attempt} for email to {To} after {Delay}ms delay", retryCount + 1, message.To, delayMs);
+
+                                await Task.Delay(delayMs, stoppingToken);
 
                                 var properties = new BasicProperties
                                 {

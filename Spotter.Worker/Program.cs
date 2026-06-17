@@ -14,7 +14,10 @@ var host = Host.CreateDefaultBuilder(args)
                 Environment.GetEnvironmentVariable("SPOTTER_CONNECTION_STRING")
                 ?? throw new InvalidOperationException("SPOTTER_CONNECTION_STRING not set.")));
 
-        services.AddHttpClient();
+        services.AddHttpClient("Geocoding", client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(10);
+        });
         services.AddSingleton<IRabbitMqConnectionFactory, RabbitMqConnectionFactory>();
         services.AddScoped<IGeocodingService, GeocodingService>();
         services.AddScoped<IEmailService, EmailService>();

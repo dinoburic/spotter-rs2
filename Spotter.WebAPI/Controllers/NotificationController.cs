@@ -26,10 +26,10 @@ namespace Spotter.WebAPI.Controllers
         }
 
         [HttpGet("unread-count")]
-        public async Task<ActionResult<object>> GetUnreadCount()
+        public async Task<ActionResult<UnreadCountResponse>> GetUnreadCount()
         {
             var count = await _notificationService.GetUnreadCountAsync();
-            return Ok(new { count });
+            return Ok(new UnreadCountResponse { Count = count });
         }
 
         [HttpPost("{id}/read")]

@@ -29,11 +29,10 @@ public class UsersController : BaseCRUDController<UserResponse, UserSearch, User
         return base.GetAll(search);
     }
 
-    [HttpPost]
     [Authorize(Roles = Roles.Admin)]
-    public Task<ActionResult<UserResponse>> Insert([FromBody] UserInsertRequest request)
+    public override Task<ActionResult<UserResponse>> Create([FromBody] UserInsertRequest request)
     {
-        return Create(request);
+        return base.Create(request);
     }
 
     [HttpGet("me")]

@@ -193,7 +193,7 @@ The system consists of:
 
 ## Setup
 
-1. Copy `.env.example` to `.env` in the `Spotter/` directory and fill in values
+1. Copy `.env.example` to `.env` in the root directory and fill in values
 2. Start infrastructure: `docker-compose up -d`
 
 ---

@@ -194,14 +194,28 @@ The system consists of:
 ## Setup
 
 1. Copy `.env.example` to `.env` in the root directory and fill in values
-2. Start infrastructure: `docker-compose up -d`
+2. Start the full review stack:
+
+```bash
+docker compose up -d --build
+```
+
+The API runs EF Core migrations automatically on startup. On a clean Docker volume it creates database `230006`, applies all migrations, and seeds the review users listed below.
+
+Verify the stack:
+
+```bash
+docker compose ps
+docker compose logs api
+docker compose exec sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$SPOTTER_SA_PASSWORD" -C -Q "SELECT name FROM sys.databases WHERE name = '230006'"
+```
 
 ---
 
 ## Manual Run
 
 ```bash
-docker-compose up -d sqlserver rabbitmq
+docker compose up -d sqlserver rabbitmq
 dotnet ef database update --project Spotter.Services --startup-project Spotter.WebAPI
 dotnet run --project Spotter.WebAPI --urls="http://0.0.0.0:5126"
 dotnet run --project Spotter.Worker
@@ -221,7 +235,14 @@ flutter run -d windows --dart-define=API_BASE_URL=http://localhost:5126
 
 ## Mobile App
 
-Find your local WiFi IP with `ipconfig`, then:
+Android emulator:
+
+```bash
+cd UI/spotter_mobile
+flutter run -d emulator --dart-define=API_BASE_URL=http://10.0.2.2:5126
+```
+
+Physical Android device: find your laptop WiFi IP with `ipconfig`, then:
 
 ```bash
 cd UI/spotter_mobile

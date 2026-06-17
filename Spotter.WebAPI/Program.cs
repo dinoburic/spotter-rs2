@@ -1,6 +1,7 @@
 using FluentValidation;
 using Mapster;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -17,7 +18,10 @@ using Spotter.Services.Validators;
 using Spotter.WebAPI.Filters;
 using System.Text;
 
-DotNetEnv.Env.TraversePath().Load();
+if (!string.Equals(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"), "true", StringComparison.OrdinalIgnoreCase))
+{
+    DotNetEnv.Env.TraversePath().Load();
+}
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,9 +29,16 @@ builder.Services.AddControllers(
    options => options.Filters.Add<ExceptionFilter>()
 );
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? Environment.GetEnvironmentVariable("SPOTTER_CONNECTION_STRING")
-    ?? throw new InvalidOperationException("Connection string not configured.");
+var configuredConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+var connectionString = !string.IsNullOrWhiteSpace(configuredConnectionString)
+    ? configuredConnectionString
+    : Environment.GetEnvironmentVariable("SPOTTER_CONNECTION_STRING");
+
+if (string.IsNullOrWhiteSpace(connectionString))
+{
+    throw new InvalidOperationException("Connection string not configured.");
+}
+
 builder.Services.AddDbContext<SpotterDbContext>(options =>
     options.UseSqlServer(connectionString)
 );
@@ -292,6 +303,8 @@ TypeAdapterConfig<User, UserResponse>.NewConfig()
 
 var app = builder.Build();
 
+await InitializeDatabaseAsync(app, connectionString);
+
 app.Use(async (context, next) =>
 {
     if (context.Request.Path.StartsWithSegments("/api/payments/webhook"))
@@ -315,3 +328,80 @@ app.MapControllers();
 app.MapHub<Spotter.Services.Hubs.NotificationHub>("/hubs/notifications");
 
 app.Run();
+
+static async Task InitializeDatabaseAsync(WebApplication app, string connectionString)
+{
+    await using var scope = app.Services.CreateAsyncScope();
+    var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("DatabaseStartup");
+    var dbContext = scope.ServiceProvider.GetRequiredService<SpotterDbContext>();
+    var target = GetDatabaseTarget(connectionString);
+
+    logger.LogInformation("Using SQL Server database target {Server}/{Database}", target.Server, target.Database);
+
+    try
+    {
+        await EnsureDatabaseExistsAsync(connectionString);
+        await dbContext.Database.MigrateAsync();
+
+        var seededUsers = await dbContext.Users
+            .Where(user => user.Username == "desktop" || user.Username == "mobile")
+            .Select(user => user.Username)
+            .ToListAsync();
+
+        logger.LogInformation(
+            "Database migrations applied. Seeded seminar users present: {Users}",
+            seededUsers.Count > 0 ? string.Join(", ", seededUsers) : "none");
+    }
+    catch (SqlException ex) when (ex.Number == 4060)
+    {
+        logger.LogCritical(ex, "SQL Server is reachable at {Server}, but database {Database} could not be opened. Check that migrations can create it and that the login has access.", target.Server, target.Database);
+        throw;
+    }
+    catch (SqlException ex) when (ex.Number == 18456)
+    {
+        logger.LogCritical(ex, "SQL Server login failed for database target {Server}/{Database}. Check the configured username and password.", target.Server, target.Database);
+        throw;
+    }
+    catch (SqlException ex) when (ex.Number is -1 or 53)
+    {
+        logger.LogCritical(ex, "SQL Server is unreachable at {Server}. In Docker use 'sqlserver,1433'; from Windows use 'localhost,1435'.", target.Server);
+        throw;
+    }
+    catch (SqlException ex)
+    {
+        logger.LogCritical(ex, "Failed to initialize SQL Server database target {Server}/{Database}. SQL error number: {Number}", target.Server, target.Database, ex.Number);
+        throw;
+    }
+}
+
+static (string Server, string Database) GetDatabaseTarget(string connectionString)
+{
+    var builder = new SqlConnectionStringBuilder(connectionString);
+    return (builder.DataSource, builder.InitialCatalog);
+}
+
+static async Task EnsureDatabaseExistsAsync(string connectionString)
+{
+    var builder = new SqlConnectionStringBuilder(connectionString);
+    var databaseName = builder.InitialCatalog;
+
+    if (string.IsNullOrWhiteSpace(databaseName))
+    {
+        throw new InvalidOperationException("Connection string must include a database name.");
+    }
+
+    builder.InitialCatalog = "master";
+
+    await using var connection = new SqlConnection(builder.ConnectionString);
+    await connection.OpenAsync();
+
+    await using var command = connection.CreateCommand();
+    command.CommandText = $"IF DB_ID(@databaseName) IS NULL CREATE DATABASE {QuoteSqlIdentifier(databaseName)};";
+    command.Parameters.AddWithValue("@databaseName", databaseName);
+    await command.ExecuteNonQueryAsync();
+}
+
+static string QuoteSqlIdentifier(string value)
+{
+    return $"[{value.Replace("]", "]]")}]";
+}

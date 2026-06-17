@@ -1,8 +1,9 @@
+x-spotter-api-db-connection: &spotter-api-db-connection Server=sqlserver,1433;Database=230006;User Id=sa;Password=${SPOTTER_SA_PASSWORD};TrustServerCertificate=True;Encrypt=False;
+
 services:
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: spotter-sqlserver
-    env_file: .env
     environment:
       ACCEPT_EULA: "Y"
       SA_PASSWORD: ${SPOTTER_SA_PASSWORD}
@@ -22,7 +23,6 @@ services:
   rabbitmq:
     image: rabbitmq:3.13-management
     container_name: spotter-rabbitmq
-    env_file: .env
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
@@ -47,10 +47,10 @@ services:
     container_name: spotter-api
     ports:
       - "5126:5126"
-    env_file: .env
     environment:
       ASPNETCORE_URLS: http://+:5126
-      ConnectionStrings__DefaultConnection: Server=sqlserver,1433;Database=230006;User Id=sa;Password=${SPOTTER_SA_PASSWORD};TrustServerCertificate=True;
+      ConnectionStrings__DefaultConnection: *spotter-api-db-connection
+      SPOTTER_CONNECTION_STRING: *spotter-api-db-connection
       Jwt__Secret: ${JWT_SECRET}
       Jwt__Issuer: SpotterAPI
       Jwt__Audience: SpotterClient
@@ -58,9 +58,13 @@ services:
       Stripe__PublishableKey: ${STRIPE_PUBLISHABLE_KEY}
       Stripe__WebhookSecret: ${STRIPE_WEBHOOK_SECRET}
       RabbitMQ__Host: rabbitmq
+      RABBITMQ_HOST: rabbitmq
       RabbitMQ__Port: "5672"
+      RABBITMQ_PORT: "5672"
       RabbitMQ__Username: ${RABBITMQ_USERNAME}
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME}
       RabbitMQ__Password: ${RABBITMQ_PASSWORD}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -74,9 +78,9 @@ services:
       context: .
       dockerfile: Spotter.Worker/Dockerfile
     container_name: spotter-worker
-    env_file: .env
     environment:
-      SPOTTER_CONNECTION_STRING: Server=sqlserver,1433;Database=230006;User Id=sa;Password=${SPOTTER_SA_PASSWORD};TrustServerCertificate=True;
+      ConnectionStrings__DefaultConnection: *spotter-api-db-connection
+      SPOTTER_CONNECTION_STRING: *spotter-api-db-connection
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: "5672"
       RABBITMQ_USERNAME: ${RABBITMQ_USERNAME}

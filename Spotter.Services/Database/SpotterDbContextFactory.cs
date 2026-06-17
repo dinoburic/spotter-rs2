@@ -8,12 +8,13 @@ namespace Spotter.Services.Database
         public SpotterDbContext CreateDbContext(string[] args)
         {
             var optionsBuilder = new DbContextOptionsBuilder<SpotterDbContext>();
-        
-        var connectionString = Environment.GetEnvironmentVariable("SPOTTER_CONNECTION_STRING")
-            ?? "Server=localhost,1435;Database=230006;User Id=sa;Password=qweasd123!;TrustServerCertificate=True;";
-        
-        optionsBuilder.UseSqlServer(connectionString);
-        return new SpotterDbContext(optionsBuilder.Options);
+
+            var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
+                ?? Environment.GetEnvironmentVariable("SPOTTER_CONNECTION_STRING")
+                ?? throw new InvalidOperationException("Set ConnectionStrings__DefaultConnection or SPOTTER_CONNECTION_STRING before running EF design-time commands.");
+
+            optionsBuilder.UseSqlServer(connectionString);
+            return new SpotterDbContext(optionsBuilder.Options);
         }
     }
 }

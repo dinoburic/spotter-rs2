@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using RabbitMQ.Client;
 
 namespace Spotter.Worker.RabbitMq
@@ -9,12 +10,12 @@ namespace Spotter.Worker.RabbitMq
         private readonly string _username;
         private readonly string _password;
 
-        public RabbitMqConnectionFactory()
+        public RabbitMqConnectionFactory(IConfiguration configuration)
         {
-            _host = Environment.GetEnvironmentVariable("RABBITMQ_HOST") ?? "localhost";
-            _port = int.Parse(Environment.GetEnvironmentVariable("RABBITMQ_PORT") ?? "5672");
-            _username = Environment.GetEnvironmentVariable("RABBITMQ_USERNAME") ?? "guest";
-            _password = Environment.GetEnvironmentVariable("RABBITMQ_PASSWORD") ?? "guest";
+            _host = configuration["RabbitMQ:Host"] ?? Environment.GetEnvironmentVariable("RABBITMQ_HOST") ?? "localhost";
+            _port = int.Parse(configuration["RabbitMQ:Port"] ?? Environment.GetEnvironmentVariable("RABBITMQ_PORT") ?? "5672");
+            _username = configuration["RabbitMQ:Username"] ?? Environment.GetEnvironmentVariable("RABBITMQ_USERNAME") ?? "guest";
+            _password = configuration["RabbitMQ:Password"] ?? Environment.GetEnvironmentVariable("RABBITMQ_PASSWORD") ?? "guest";
         }
 
         public async Task<IConnection> CreateConnectionAsync()

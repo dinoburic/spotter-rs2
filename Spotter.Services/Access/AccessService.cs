@@ -1,7 +1,6 @@
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using Spotter.Common.Services.CryptoService;
 using Spotter.Model.Access;
@@ -21,7 +20,6 @@ namespace Spotter.Services
         private readonly IRefreshTokenService _refreshTokenService;
         private readonly ICryptoService _cryptoService;
         private readonly IConfiguration _configuration;
-        private readonly ILogger<AccessService> _logger;
         private readonly IValidator<UserLoginRequest> _loginValidator;
         private readonly IValidator<RegisterRequest> _registerValidator;
 
@@ -31,7 +29,6 @@ namespace Spotter.Services
             IRefreshTokenService refreshTokenService,
             ICryptoService cryptoService,
             IConfiguration configuration,
-            ILogger<AccessService> logger,
             IValidator<UserLoginRequest> loginValidator,
             IValidator<RegisterRequest> registerValidator)
         {
@@ -40,7 +37,6 @@ namespace Spotter.Services
             _refreshTokenService = refreshTokenService;
             _cryptoService = cryptoService;
             _configuration = configuration;
-            _logger = logger;
             _loginValidator = loginValidator;
             _registerValidator = registerValidator;
         }
@@ -109,36 +105,16 @@ namespace Spotter.Services
             };
         }
 
-        public async Task LogoutAsync(string accessToken, string refreshToken)
+        public async Task LogoutAsync(int userId, string refreshToken)
         {
-            int userId = 0;
-            try
-            {
-                var handler = new JwtSecurityTokenHandler();
-                var token = handler.ReadJwtToken(accessToken);
-                var jti = token.Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Jti)?.Value;
-                var sub = token.Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Sub)?.Value;
-                var exp = token.ValidTo;
+            var storedToken = await _dbContext.RefreshTokens
+                .FirstOrDefaultAsync(rt => rt.UserId == userId && rt.Token == refreshToken);
 
-                if (!string.IsNullOrEmpty(jti) && int.TryParse(sub, out userId))
-                {
-                    _dbContext.InvalidatedTokens.Add(new InvalidatedToken
-                    {
-                        UserId = userId,
-                        TokenJti = jti,
-                        ExpiresAt = exp,
-                        InvalidatedAt = DateTime.UtcNow
-                    });
-                    await _dbContext.SaveChangesAsync();
-                }
-            }
-            catch (Exception ex)
+            if (storedToken != null)
             {
-                _logger.LogWarning(ex, "Failed to parse access token during logout");
+                _dbContext.RefreshTokens.Remove(storedToken);
+                await _dbContext.SaveChangesAsync();
             }
-
-            if (userId > 0)
-                await _refreshTokenService.DeleteAllUserRefreshTokensAsync(userId);
         }
 
         public async Task<UserLoginResponse> RegisterAsync(RegisterRequest request)

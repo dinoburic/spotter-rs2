@@ -9,6 +9,7 @@ using Spotter.Model.Responses;
 using Spotter.Model.SearchObjects;
 using Spotter.Services.Database;
 using Spotter.Services.StateMachines;
+using System.Data;
 
 namespace Spotter.Services
 {
@@ -45,6 +46,7 @@ namespace Spotter.Services
             var query = _dbContext.Reservations
                 .Include(r => r.User)
                 .Include(r => r.Event)
+                .Include(r => r.TicketType)
                 .Include(r => r.ApprovedBy)
                 .Where(r => !r.IsDeleted)
                 .AsQueryable();
@@ -93,6 +95,7 @@ namespace Spotter.Services
             var reservation = await _dbContext.Reservations
                 .Include(r => r.User)
                 .Include(r => r.Event)
+                .Include(r => r.TicketType)
                 .Include(r => r.ApprovedBy)
                 .FirstOrDefaultAsync(r => r.Id == id && !r.IsDeleted);
 
@@ -108,11 +111,17 @@ namespace Spotter.Services
         public async Task<ReservationResponse> CreateAsync(ReservationInsertRequest request)
         {
             var userId = _currentUserService.GetUserId();
-            _logger.LogInformation("Creating reservation for event {EventId} by user {UserId}", request.EventId, userId);
+            _logger.LogInformation("Creating reservation for event {EventId}, ticket type {TicketTypeId} by user {UserId}", request.EventId, request.TicketTypeId, userId);
 
             try
             {
                 await _validator.ValidateAndThrowAsync(request);
+
+                var ticketType = await _dbContext.TicketTypes
+                    .FirstOrDefaultAsync(tt => tt.Id == request.TicketTypeId && tt.EventId == request.EventId);
+
+                if (ticketType == null)
+                    throw new NotFoundException("Ticket type not found for this event.");
 
                 var eventEntity = await _dbContext.Events
                     .FirstOrDefaultAsync(e => e.Id == request.EventId && !e.IsDeleted);
@@ -128,42 +137,74 @@ namespace Spotter.Services
 
                 var hasDuplicate = await _dbContext.Reservations.AnyAsync(r =>
                     r.UserId == userId &&
-                    r.EventId == request.EventId &&
+                    r.TicketTypeId == request.TicketTypeId &&
                     !r.IsDeleted &&
-                    r.Status != ReservationStatus.Cancelled);
+                    r.Status == ReservationStatus.Pending);
 
                 if (hasDuplicate)
-                    throw new ClientException("You already have an active reservation for this event.");
+                    throw new ClientException("You already have a pending reservation for this ticket type.");
 
-                var reservation = new Reservation
+                await using var transaction = await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+
+                try
                 {
-                    UserId = userId,
-                    EventId = request.EventId,
-                    Status = ReservationStatus.Pending,
-                    AuditNote = request.Note,
-                    CreatedAt = DateTime.UtcNow,
-                    IsDeleted = false
-                };
+                    var rowsAffected = await _dbContext.Database.ExecuteSqlRawAsync(
+                        @"UPDATE TicketTypes
+                          SET SoldQuantity = SoldQuantity + {0}
+                          WHERE Id = {1}
+                          AND (TotalQuantity - SoldQuantity) >= {0}",
+                        request.Quantity, request.TicketTypeId);
 
-                _dbContext.Reservations.Add(reservation);
-                await _dbContext.SaveChangesAsync();
+                    if (rowsAffected == 0)
+                    {
+                        await transaction.RollbackAsync();
+                        throw new ClientException("Not enough capacity available to reserve.");
+                    }
 
-                await _notificationService.CreateAsync(
-                    userId: userId,
-                    title: "Reservation Submitted",
-                    body: $"Your reservation for {eventEntity.Title} is pending approval.",
-                    type: NotificationType.General,
-                    referenceId: reservation.Id.ToString()
-                );
+                    var reservation = new Reservation
+                    {
+                        UserId = userId,
+                        EventId = request.EventId,
+                        TicketTypeId = request.TicketTypeId,
+                        Quantity = request.Quantity,
+                        Status = ReservationStatus.Pending,
+                        AuditNote = request.Note,
+                        CreatedAt = DateTime.UtcNow,
+                        ExpiresAt = DateTime.UtcNow.AddMinutes(15),
+                        IsDeleted = false
+                    };
 
-                var createdReservation = await _dbContext.Reservations
-                    .Include(r => r.User)
-                    .Include(r => r.Event)
-                    .Include(r => r.ApprovedBy)
-                    .FirstAsync(r => r.Id == reservation.Id);
+                    _dbContext.Reservations.Add(reservation);
+                    await _dbContext.SaveChangesAsync();
+                    await transaction.CommitAsync();
 
-                _logger.LogInformation("Reservation {ReservationId} created successfully", reservation.Id);
-                return _mapper.Map<ReservationResponse>(createdReservation);
+                    await _notificationService.CreateAsync(
+                        userId: userId,
+                        title: "Reservation Created",
+                        body: $"Your reservation for {request.Quantity} {ticketType.Name} ticket(s) at {eventEntity.Title} expires in 15 minutes.",
+                        type: NotificationType.General,
+                        referenceId: reservation.Id.ToString()
+                    );
+
+                    var createdReservation = await _dbContext.Reservations
+                        .Include(r => r.User)
+                        .Include(r => r.Event)
+                        .Include(r => r.TicketType)
+                        .Include(r => r.ApprovedBy)
+                        .FirstAsync(r => r.Id == reservation.Id);
+
+                    _logger.LogInformation("Reservation {ReservationId} created successfully", reservation.Id);
+                    return _mapper.Map<ReservationResponse>(createdReservation);
+                }
+                catch (ClientException)
+                {
+                    throw;
+                }
+                catch (Exception)
+                {
+                    await transaction.RollbackAsync();
+                    throw;
+                }
             }
             catch (Exception ex) when (ex is not ClientException and not NotFoundException)
             {
@@ -220,6 +261,7 @@ namespace Spotter.Services
             var reservation = await _dbContext.Reservations
                 .Include(r => r.User)
                 .Include(r => r.Event)
+                .Include(r => r.TicketType)
                 .Include(r => r.ApprovedBy)
                 .FirstOrDefaultAsync(r => r.Id == id && !r.IsDeleted);
 
@@ -231,6 +273,11 @@ namespace Spotter.Services
 
             if (!isAdmin && reservation.UserId != userId)
                 throw new ClientException("Access denied.");
+
+            if (reservation.Status == ReservationStatus.Pending && reservation.TicketType != null)
+            {
+                reservation.TicketType.SoldQuantity = Math.Max(0, reservation.TicketType.SoldQuantity - reservation.Quantity);
+            }
 
             _reservationStateMachine.Transition(reservation, ReservationStatus.Cancelled);
             reservation.AuditNote = auditNote;
@@ -253,6 +300,7 @@ namespace Spotter.Services
             reservation = await _dbContext.Reservations
                 .Include(r => r.User)
                 .Include(r => r.Event)
+                .Include(r => r.TicketType)
                 .Include(r => r.ApprovedBy)
                 .FirstAsync(r => r.Id == id);
 

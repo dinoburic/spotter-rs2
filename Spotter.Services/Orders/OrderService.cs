@@ -208,12 +208,13 @@ namespace Spotter.Services
                     }
 
                     var totalAmount = subtotal - discountApplied;
+                    var isZeroAmount = totalAmount == 0;
 
                     var order = new Order
                     {
                         UserId = userId,
                         EventId = request.EventId,
-                        Status = OrderStatus.Pending,
+                        Status = isZeroAmount ? OrderStatus.Paid : OrderStatus.Pending,
                         CreatedAt = DateTime.UtcNow,
                         TotalAmount = totalAmount,
                         SpotterPointsRedeemed = spotterPointsRedeemed,
@@ -239,6 +240,34 @@ namespace Spotter.Services
                     }
 
                     await _dbContext.SaveChangesAsync();
+
+                    if (isZeroAmount)
+                    {
+                        var ticketCount = 0;
+                        var orderItems = await _dbContext.OrderItems
+                            .Where(oi => oi.OrderId == order.Id)
+                            .ToListAsync();
+
+                        foreach (var orderItem in orderItems)
+                        {
+                            for (int i = 0; i < orderItem.Quantity; i++)
+                            {
+                                var ticket = new Ticket
+                                {
+                                    UserId = order.UserId,
+                                    OrderItemId = orderItem.Id,
+                                    QrCodePayload = GenerateQrPayload(order.Id, orderItem.Id, orderItem.TicketTypeId),
+                                    Status = TicketStatus.Active,
+                                    IssuedAt = DateTime.UtcNow
+                                };
+                                _dbContext.Tickets.Add(ticket);
+                                ticketCount++;
+                            }
+                        }
+                        await _dbContext.SaveChangesAsync();
+                        _logger.LogInformation("Zero-amount order {OrderId}: {Count} tickets issued immediately", order.Id, ticketCount);
+                    }
+
                     await transaction.CommitAsync();
 
                     var createdOrder = await _dbContext.Orders
@@ -247,13 +276,26 @@ namespace Spotter.Services
                         .Include(o => o.OrderItems).ThenInclude(oi => oi.TicketType)
                         .FirstAsync(o => o.Id == order.Id);
 
-                    await _notificationService.CreateAsync(
-                        userId: userId,
-                        title: "Order Created",
-                        body: $"Your order for {eventEntity.Title} has been created. Complete payment to receive your tickets.",
-                        type: NotificationType.OrderCreated,
-                        referenceId: order.Id.ToString()
-                    );
+                    if (isZeroAmount)
+                    {
+                        await _notificationService.CreateAsync(
+                            userId: userId,
+                            title: "Order Complete",
+                            body: $"Your tickets for {eventEntity.Title} have been issued!",
+                            type: NotificationType.OrderPaid,
+                            referenceId: order.Id.ToString()
+                        );
+                    }
+                    else
+                    {
+                        await _notificationService.CreateAsync(
+                            userId: userId,
+                            title: "Order Created",
+                            body: $"Your order for {eventEntity.Title} has been created. Complete payment to receive your tickets.",
+                            type: NotificationType.OrderCreated,
+                            referenceId: order.Id.ToString()
+                        );
+                    }
 
                     _logger.LogInformation("Order {OrderId} created successfully for user {UserId}", order.Id, userId);
                     return _mapper.Map<OrderResponse>(createdOrder);
@@ -379,55 +421,72 @@ namespace Spotter.Services
                 throw new NotFoundException("Order not found.");
             }
 
-            if (!string.IsNullOrEmpty(order.StripePaymentIntentId))
-            {
-                await _stripeService.RefundPaymentAsync(order.StripePaymentIntentId);
-                _logger.LogInformation("Stripe refund initiated for order {OrderId}", id);
-            }
+            if (order.Status != OrderStatus.Paid)
+                throw new ClientException("Only paid orders can be refunded.");
 
-            await using var transaction = await _dbContext.Database.BeginTransactionAsync();
-
-            _orderStateMachine.Transition(order, OrderStatus.Refunded);
-
-            var ticketTypeIdsToNotify = new List<int>();
-
-            foreach (var orderItem in order.OrderItems)
-            {
-                foreach (var ticket in orderItem.Tickets.Where(t => t.Status == TicketStatus.Active))
-                {
-                    _ticketStateMachine.Transition(ticket, TicketStatus.Cancelled);
-                }
-
-                var ticketType = await _dbContext.TicketTypes.FindAsync(orderItem.TicketTypeId);
-                if (ticketType != null)
-                {
-                    ticketType.SoldQuantity -= orderItem.Quantity;
-                    ticketTypeIdsToNotify.Add(orderItem.TicketTypeId);
-                }
-            }
-
-            if (order.SpotterPointsRedeemed > 0)
-            {
-                await _spotterPointsService.EarnAsync(
-                    order.UserId,
-                    order.SpotterPointsRedeemed,
-                    PointSource.Redemption,
-                    order.Id.ToString(),
-                    "Points restored from refunded order"
-                );
-                _logger.LogInformation("Restored {Points} points for refunded order {OrderId}", order.SpotterPointsRedeemed, order.Id);
-            }
-
+            order.RefundStatus = "Processing";
             await _dbContext.SaveChangesAsync();
-            await transaction.CommitAsync();
 
-            foreach (var ticketTypeId in ticketTypeIdsToNotify.Distinct())
+            try
             {
-                await _waitlistService.NotifyNextInLineAsync(ticketTypeId);
-            }
+                if (!string.IsNullOrEmpty(order.StripePaymentIntentId))
+                {
+                    await _stripeService.RefundPaymentAsync(order.StripePaymentIntentId);
+                    _logger.LogInformation("Stripe refund initiated for order {OrderId}", id);
+                }
 
-            _logger.LogInformation("Order {OrderId} refunded successfully", id);
-            return _mapper.Map<OrderResponse>(order);
+                await using var transaction = await _dbContext.Database.BeginTransactionAsync();
+
+                _orderStateMachine.Transition(order, OrderStatus.Refunded);
+                order.RefundStatus = "Completed";
+
+                var ticketTypeIdsToNotify = new List<int>();
+
+                foreach (var orderItem in order.OrderItems)
+                {
+                    foreach (var ticket in orderItem.Tickets.Where(t => t.Status == TicketStatus.Active))
+                    {
+                        _ticketStateMachine.Transition(ticket, TicketStatus.Cancelled);
+                    }
+
+                    var ticketType = await _dbContext.TicketTypes.FindAsync(orderItem.TicketTypeId);
+                    if (ticketType != null)
+                    {
+                        ticketType.SoldQuantity = Math.Max(0, ticketType.SoldQuantity - orderItem.Quantity);
+                        ticketTypeIdsToNotify.Add(orderItem.TicketTypeId);
+                    }
+                }
+
+                if (order.SpotterPointsRedeemed > 0)
+                {
+                    await _spotterPointsService.EarnAsync(
+                        order.UserId,
+                        order.SpotterPointsRedeemed,
+                        PointSource.Redemption,
+                        order.Id.ToString(),
+                        "Points restored from refunded order"
+                    );
+                    _logger.LogInformation("Restored {Points} points for refunded order {OrderId}", order.SpotterPointsRedeemed, order.Id);
+                }
+
+                await _dbContext.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                foreach (var ticketTypeId in ticketTypeIdsToNotify.Distinct())
+                {
+                    await _waitlistService.NotifyNextInLineAsync(ticketTypeId);
+                }
+
+                _logger.LogInformation("Order {OrderId} refunded successfully", id);
+                return _mapper.Map<OrderResponse>(order);
+            }
+            catch (Exception ex)
+            {
+                order.RefundStatus = "Failed";
+                await _dbContext.SaveChangesAsync();
+                _logger.LogError(ex, "Failed to refund order {OrderId}", id);
+                throw;
+            }
         }
 
         public async Task CancelAsync(int id)

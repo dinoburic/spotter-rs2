@@ -196,6 +196,7 @@ namespace Spotter.Services.Database
             {
                 entity.Property(r => r.AuditNote).HasMaxLength(1000);
                 entity.Property(r => r.IsDeleted).HasDefaultValue(false);
+                entity.Property(r => r.Quantity).HasDefaultValue(1);
                 entity.HasOne(r => r.User)
                     .WithMany()
                     .HasForeignKey(r => r.UserId)
@@ -203,6 +204,10 @@ namespace Spotter.Services.Database
                 entity.HasOne(r => r.Event)
                     .WithMany()
                     .HasForeignKey(r => r.EventId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(r => r.TicketType)
+                    .WithMany()
+                    .HasForeignKey(r => r.TicketTypeId)
                     .OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(r => r.Order)
                     .WithMany()

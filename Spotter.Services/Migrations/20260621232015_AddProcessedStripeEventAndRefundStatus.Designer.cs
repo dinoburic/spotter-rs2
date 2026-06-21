@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Spotter.Services.Database;
 
@@ -11,9 +12,11 @@ using Spotter.Services.Database;
 namespace Spotter.Services.Migrations
 {
     [DbContext(typeof(SpotterDbContext))]
-    partial class SpotterDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260621232015_AddProcessedStripeEventAndRefundStatus")]
+    partial class AddProcessedStripeEventAndRefundStatus
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -784,9 +787,6 @@ namespace Spotter.Services.Migrations
                     b.Property<int>("EventId")
                         .HasColumnType("int");
 
-                    b.Property<DateTime?>("ExpiresAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<bool>("IsDeleted")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
@@ -795,15 +795,7 @@ namespace Spotter.Services.Migrations
                     b.Property<int?>("OrderId")
                         .HasColumnType("int");
 
-                    b.Property<int>("Quantity")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasDefaultValue(1);
-
                     b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<int>("TicketTypeId")
                         .HasColumnType("int");
 
                     b.Property<int>("UserId")
@@ -818,8 +810,6 @@ namespace Spotter.Services.Migrations
                     b.HasIndex("OrderId");
 
                     b.HasIndex("Status");
-
-                    b.HasIndex("TicketTypeId");
 
                     b.HasIndex("UserId");
 
@@ -1747,12 +1737,6 @@ namespace Spotter.Services.Migrations
                         .HasForeignKey("OrderId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("Spotter.Services.Database.TicketType", "TicketType")
-                        .WithMany()
-                        .HasForeignKey("TicketTypeId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("Spotter.Services.Database.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
@@ -1764,8 +1748,6 @@ namespace Spotter.Services.Migrations
                     b.Navigation("Event");
 
                     b.Navigation("Order");
-
-                    b.Navigation("TicketType");
 
                     b.Navigation("User");
                 });

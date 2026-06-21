@@ -37,10 +37,12 @@ class PaymentProvider extends ChangeNotifier {
 
       await Stripe.instance.presentPaymentSheet();
 
-      paymentSuccess = true;
+      final verified = await _verifyOrderPaid(orderId);
+
+      paymentSuccess = verified;
       isLoading = false;
       notifyListeners();
-      return true;
+      return verified;
     } on StripeException catch (e) {
       if (e.error.code == FailureCode.Canceled) {
         try {
@@ -63,6 +65,20 @@ class PaymentProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+  }
+
+  Future<bool> _verifyOrderPaid(int orderId) async {
+    for (int i = 0; i < 10; i++) {
+      await Future.delayed(const Duration(seconds: 1));
+      try {
+        final order = await _baseProvider.get<Map<String, dynamic>>(
+          '${ApiConstants.orders}/$orderId',
+          fromJson: (json) => json as Map<String, dynamic>,
+        );
+        if (order['statusName'] == 'Paid') return true;
+      } catch (_) {}
+    }
+    return false;
   }
 
   void clearError() {

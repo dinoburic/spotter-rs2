@@ -137,7 +137,7 @@ namespace Spotter.Services
                 .AsNoTracking()
                 .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
-                .FirstOrDefaultAsync(u => u.Username == username);
+                .FirstOrDefaultAsync(u => u.Username == username && u.IsActive && !u.IsDeleted);
 
             if (user == null)
                 return null;

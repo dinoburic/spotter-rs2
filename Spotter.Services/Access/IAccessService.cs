@@ -7,7 +7,7 @@ namespace Spotter.Services
     {
         Task<UserLoginResponse> LoginAsync(UserLoginRequest request);
         Task<UserLoginResponse> LoginWithRefreshTokenAsync(string refreshToken);
-        Task LogoutAsync(string accessToken, string refreshToken);
+        Task LogoutAsync(int userId, string refreshToken);
         Task<UserLoginResponse> RegisterAsync(RegisterRequest request);
     }
 }

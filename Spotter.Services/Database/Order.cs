@@ -16,6 +16,7 @@ namespace Spotter.Services.Database
         public string? StripeCheckoutSessionId { get; set; }
         public int SpotterPointsRedeemed { get; set; }
         public decimal DiscountApplied { get; set; }
+        public string? RefundStatus { get; set; }
         public ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
     }
 }

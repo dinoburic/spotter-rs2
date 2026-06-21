@@ -4,7 +4,6 @@ using Spotter.Model.Responses;
 using Spotter.Model.SearchObjects;
 using Spotter.Model.Static;
 using Spotter.Services;
-using Spotter.WebAPI.Filters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -33,6 +32,27 @@ public class UsersController : BaseCRUDController<UserResponse, UserSearch, User
     public override Task<ActionResult<UserResponse>> Create([FromBody] UserInsertRequest request)
     {
         return base.Create(request);
+    }
+
+    [HttpGet("{id}")]
+    [Authorize(Roles = Roles.Admin)]
+    public override Task<ActionResult<UserResponse>> GetById(int id)
+    {
+        return base.GetById(id);
+    }
+
+    [HttpPut("{id}")]
+    [Authorize(Roles = Roles.Admin)]
+    public override Task<ActionResult<UserResponse>> Update(int id, [FromBody] UserUpdateRequest request)
+    {
+        return base.Update(id, request);
+    }
+
+    [HttpDelete("{id}")]
+    [Authorize(Roles = Roles.Admin)]
+    public override Task<IActionResult> Delete(int id)
+    {
+        return base.Delete(id);
     }
 
     [HttpGet("me")]

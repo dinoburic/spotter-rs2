@@ -107,11 +107,8 @@ namespace Spotter.Services
                 throw new ClientException("Delta must be positive for earning points.");
             }
 
-            var rowsAffected = await _dbContext.Database.ExecuteSqlRawAsync(
-                @"UPDATE Users SET SpotterPointsBalance = SpotterPointsBalance + {0} WHERE Id = {1}",
-                delta, userId);
-
-            if (rowsAffected == 0)
+            var userExists = await _dbContext.Users.AnyAsync(u => u.Id == userId);
+            if (!userExists)
             {
                 _logger.LogWarning("User {UserId} not found", userId);
                 throw new NotFoundException("User not found.");
@@ -147,8 +144,8 @@ namespace Spotter.Services
                 throw new ClientException($"Insufficient points. Available: {balance}.");
             }
 
-            var user = await _dbContext.Users.FindAsync(userId);
-            if (user == null)
+            var userExists = await _dbContext.Users.AnyAsync(u => u.Id == userId);
+            if (!userExists)
             {
                 _logger.LogWarning("User {UserId} not found", userId);
                 throw new NotFoundException("User not found.");
@@ -165,7 +162,6 @@ namespace Spotter.Services
             };
 
             _dbContext.SpotterPoints.Add(entry);
-            user.SpotterPointsBalance -= points;
             await _dbContext.SaveChangesAsync();
             _logger.LogInformation("User {UserId} redeemed {Points} points", userId, points);
         }

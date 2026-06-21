@@ -54,7 +54,9 @@ namespace Spotter.Services
             _logger.LogInformation("Creating ticket type {Name} for event {EventId}", request.Name, request.EventId);
             await _insertValidator.ValidateAndThrowAsync(request);
 
-            var eventEntity = await _dbContext.Events.FirstOrDefaultAsync(e => e.Id == request.EventId);
+            var eventEntity = await _dbContext.Events
+                .Include(e => e.TicketTypes)
+                .FirstOrDefaultAsync(e => e.Id == request.EventId);
             if (eventEntity == null)
             {
                 _logger.LogWarning("Event {EventId} not found", request.EventId);
@@ -67,6 +69,12 @@ namespace Spotter.Services
 
             if (eventEntity.Status == EventStatus.Cancelled)
                 throw new ClientException("Cannot add ticket types to a cancelled event.");
+
+            var existingTotal = eventEntity.TicketTypes.Sum(tt => tt.TotalQuantity);
+            var newTotal = existingTotal + request.TotalQuantity;
+
+            if (newTotal > eventEntity.TotalCapacity)
+                throw new ClientException($"Total ticket quantity ({newTotal}) exceeds event capacity ({eventEntity.TotalCapacity}).");
 
             var entity = _mapper.Map<TicketType>(request);
             entity.SoldQuantity = 0;
@@ -97,7 +105,9 @@ namespace Spotter.Services
                 throw new NotFoundException("TicketType not found.");
             }
 
-            var eventEntity = await _dbContext.Events.FirstOrDefaultAsync(e => e.Id == entity.EventId);
+            var eventEntity = await _dbContext.Events
+                .Include(e => e.TicketTypes)
+                .FirstOrDefaultAsync(e => e.Id == entity.EventId);
             if (eventEntity == null)
                 throw new NotFoundException("Event not found.");
 
@@ -107,6 +117,14 @@ namespace Spotter.Services
 
             if (request.TotalQuantity < entity.SoldQuantity)
                 throw new ClientException("TotalQuantity cannot be less than the number of already sold tickets.");
+
+            var existingTotal = eventEntity.TicketTypes
+                .Where(tt => tt.Id != id)
+                .Sum(tt => tt.TotalQuantity);
+            var newTotal = existingTotal + request.TotalQuantity;
+
+            if (newTotal > eventEntity.TotalCapacity)
+                throw new ClientException($"Total ticket quantity ({newTotal}) exceeds event capacity ({eventEntity.TotalCapacity}).");
 
             _mapper.Map(request, entity);
             await _dbContext.SaveChangesAsync();

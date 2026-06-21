@@ -113,6 +113,7 @@ TypeAdapterConfig<Notification, NotificationResponse>.NewConfig()
 
 TypeAdapterConfig<Reservation, ReservationResponse>.NewConfig()
     .Map(dest => dest.EventTitle, src => src.Event != null ? src.Event.Title : string.Empty)
+    .Map(dest => dest.TicketTypeName, src => src.TicketType != null ? src.TicketType.Name : string.Empty)
     .Map(dest => dest.UserFullName, src => src.User != null ? src.User.FirstName + " " + src.User.LastName : string.Empty)
     .Map(dest => dest.StatusName, src => src.Status.ToString())
     .Map(dest => dest.ApprovedByName, src => src.ApprovedBy != null ? src.ApprovedBy.FirstName + " " + src.ApprovedBy.LastName : null);

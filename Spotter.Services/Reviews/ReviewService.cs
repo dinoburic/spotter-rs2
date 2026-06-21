@@ -114,16 +114,16 @@ namespace Spotter.Services
                 throw new NotFoundException("Event not found.");
             }
 
-            if (eventEntity.Status != EventStatus.Completed && eventEntity.Status != EventStatus.Active)
-                throw new ClientException("Reviews can only be left for active or completed events.");
+            if (eventEntity.EndsAt > DateTime.UtcNow)
+                throw new ClientException("You can only review events after they have ended.");
 
             var hasAttended = await _dbContext.Tickets.AnyAsync(t =>
                 t.UserId == userId &&
                 t.OrderItem.Order.EventId == request.EventId &&
-                (t.Status == TicketStatus.Active || t.Status == TicketStatus.Used));
+                t.Status == TicketStatus.Used);
 
             if (!hasAttended)
-                throw new ClientException("You can only review events you have attended.");
+                throw new ClientException("You can only review events you have attended (ticket must be used).");
 
             var alreadyReviewed = await _dbContext.Reviews.AnyAsync(r =>
                 r.UserId == userId &&

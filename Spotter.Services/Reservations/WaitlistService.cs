@@ -110,6 +110,11 @@ namespace Spotter.Services
                 throw new NotFoundException("Ticket type not found.");
             }
 
+            if (ticketType.EventId != request.EventId)
+            {
+                throw new ClientException("Ticket type does not belong to the specified event.");
+            }
+
             if (ticketType.SoldQuantity < ticketType.TotalQuantity)
             {
                 throw new ClientException("Tickets are still available for this type. Purchase directly.");

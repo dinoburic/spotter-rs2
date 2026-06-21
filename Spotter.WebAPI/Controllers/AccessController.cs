@@ -8,14 +8,16 @@ namespace Spotter.WebAPI.Controllers
 {
     [ApiController]
     [Route("api/access")]
-    
+
     public class AccessController : ControllerBase
     {
         private readonly IAccessService _accessService;
+        private readonly ICurrentUserService _currentUserService;
 
-        public AccessController(IAccessService accessService)
+        public AccessController(IAccessService accessService, ICurrentUserService currentUserService)
         {
             _accessService = accessService;
+            _currentUserService = currentUserService;
         }
 
         [AllowAnonymous]
@@ -34,12 +36,12 @@ namespace Spotter.WebAPI.Controllers
         }
 
 
-        [AllowAnonymous]
+        [Authorize]
         [HttpPost("logout")]
-        public async Task<IActionResult> Logout([FromBody] RefreshAccessTokenRequest request)
+        public async Task<IActionResult> Logout([FromBody] LogoutRequest request)
         {
-            var accessToken = Request.Headers.Authorization.ToString().Replace("Bearer ", "");
-            await _accessService.LogoutAsync(accessToken, request.RefreshToken);
+            var userId = _currentUserService.GetUserId();
+            await _accessService.LogoutAsync(userId, request.RefreshToken);
             return NoContent();
         }
 

@@ -36,6 +36,7 @@ namespace Spotter.Services.Database
         public DbSet<Recommendation> Recommendations { get; set; }
         public DbSet<Cart> Carts { get; set; }
         public DbSet<CartItem> CartItems { get; set; }
+        public DbSet<ProcessedStripeEvent> ProcessedStripeEvents { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

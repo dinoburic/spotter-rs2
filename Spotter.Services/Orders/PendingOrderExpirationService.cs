@@ -34,16 +34,13 @@ namespace Spotter.Services
                     var dbContext = scope.ServiceProvider.GetRequiredService<SpotterDbContext>();
                     var waitlistService = scope.ServiceProvider.GetRequiredService<IWaitlistService>();
 
+                    var ticketTypeIdsToNotify = new List<int>();
+
                     var cutoff = DateTime.UtcNow.Subtract(PendingTimeout);
                     var expiredOrders = await dbContext.Orders
                         .Include(o => o.OrderItems)
                         .Where(o => o.Status == OrderStatus.Pending && o.CreatedAt < cutoff)
                         .ToListAsync(stoppingToken);
-
-                    if (expiredOrders.Count == 0)
-                        continue;
-
-                    var ticketTypeIdsToNotify = new List<int>();
 
                     foreach (var order in expiredOrders)
                     {
@@ -76,14 +73,33 @@ namespace Spotter.Services
                         _logger.LogInformation("Expired pending order {OrderId} cancelled", order.Id);
                     }
 
-                    await dbContext.SaveChangesAsync(stoppingToken);
+                    var expiredReservations = await dbContext.Reservations
+                        .Include(r => r.TicketType)
+                        .Where(r => r.Status == ReservationStatus.Pending && r.ExpiresAt < DateTime.UtcNow)
+                        .ToListAsync(stoppingToken);
 
-                    foreach (var ticketTypeId in ticketTypeIdsToNotify.Distinct())
+                    foreach (var reservation in expiredReservations)
                     {
-                        await waitlistService.NotifyNextInLineAsync(ticketTypeId);
+                        reservation.Status = ReservationStatus.Cancelled;
+                        if (reservation.TicketType != null)
+                        {
+                            reservation.TicketType.SoldQuantity = Math.Max(0, reservation.TicketType.SoldQuantity - reservation.Quantity);
+                            ticketTypeIdsToNotify.Add(reservation.TicketTypeId);
+                        }
+                        _logger.LogInformation("Expired reservation {ReservationId} cancelled", reservation.Id);
                     }
 
-                    _logger.LogInformation("Cancelled {Count} expired pending orders", expiredOrders.Count);
+                    if (expiredOrders.Count > 0 || expiredReservations.Count > 0)
+                    {
+                        await dbContext.SaveChangesAsync(stoppingToken);
+
+                        foreach (var ticketTypeId in ticketTypeIdsToNotify.Distinct())
+                        {
+                            await waitlistService.NotifyNextInLineAsync(ticketTypeId);
+                        }
+
+                        _logger.LogInformation("Cancelled {OrderCount} expired orders and {ReservationCount} expired reservations", expiredOrders.Count, expiredReservations.Count);
+                    }
                 }
                 catch (OperationCanceledException)
                 {

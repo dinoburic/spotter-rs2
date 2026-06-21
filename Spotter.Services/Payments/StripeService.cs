@@ -62,7 +62,35 @@ namespace Spotter.Services
 
             if (order.Status != OrderStatus.Pending)
             {
-                throw new ClientException("Order is not pending.");
+                throw new ClientException("This order cannot be paid.");
+            }
+
+            var paymentIntentService = new PaymentIntentService();
+
+            if (!string.IsNullOrEmpty(order.StripePaymentIntentId))
+            {
+                try
+                {
+                    var existing = await paymentIntentService.GetAsync(order.StripePaymentIntentId);
+                    if (existing.Status == "requires_payment_method" || existing.Status == "requires_confirmation")
+                    {
+                        _logger.LogInformation("Reusing existing payment intent {PaymentIntentId} for order {OrderId}", existing.Id, orderId);
+                        return new PaymentIntentResponse
+                        {
+                            ClientSecret = existing.ClientSecret,
+                            PaymentIntentId = existing.Id
+                        };
+                    }
+                    if (existing.Status != "succeeded" && existing.Status != "canceled")
+                    {
+                        await paymentIntentService.CancelAsync(order.StripePaymentIntentId);
+                        _logger.LogInformation("Cancelled stale payment intent {PaymentIntentId} for order {OrderId}", order.StripePaymentIntentId, orderId);
+                    }
+                }
+                catch (StripeException ex)
+                {
+                    _logger.LogWarning(ex, "Failed to retrieve existing payment intent {PaymentIntentId}, creating new one", order.StripePaymentIntentId);
+                }
             }
 
             var amountInCents = (long)(order.TotalAmount * 100);
@@ -81,8 +109,7 @@ namespace Spotter.Services
                 }
             };
 
-            var service = new PaymentIntentService();
-            var intent = await service.CreateAsync(options);
+            var intent = await paymentIntentService.CreateAsync(options);
 
             order.StripePaymentIntentId = intent.Id;
             await _dbContext.SaveChangesAsync();
@@ -116,18 +143,41 @@ namespace Spotter.Services
         throw;
     }
 
+    var alreadyProcessed = await _dbContext.ProcessedStripeEvents
+        .AnyAsync(e => e.StripeEventId == stripeEvent.Id);
+    if (alreadyProcessed)
+    {
+        _logger.LogInformation("Stripe event {EventId} already processed, skipping", stripeEvent.Id);
+        return;
+    }
+
     if (stripeEvent.Type == EventTypes.PaymentIntentSucceeded)
     {
         var paymentIntent = stripeEvent.Data.Object as PaymentIntent;
-        if (paymentIntent?.Metadata.TryGetValue("orderId", out var orderIdStr) == true)
+        if (paymentIntent?.Metadata.TryGetValue("orderId", out var orderIdStr) == true &&
+            int.TryParse(orderIdStr, out var orderId))
         {
-            if (int.TryParse(orderIdStr, out var orderId))
+            var order = await _dbContext.Orders.FirstOrDefaultAsync(o => o.Id == orderId);
+            if (order != null)
             {
-                var order = await _dbContext.Orders.FirstOrDefaultAsync(o => o.Id == orderId);
-                if (order != null && order.Status == OrderStatus.Pending)
+                if (order.StripePaymentIntentId != paymentIntent.Id)
                 {
-                    await _orderService.MarkAsPaidAsync(orderId);
-                    _logger.LogInformation("Order {OrderId} marked as paid via Stripe webhook", orderId);
+                    _logger.LogWarning("PaymentIntent {PaymentIntentId} does not match order {OrderId} current intent {CurrentIntentId}",
+                        paymentIntent.Id, orderId, order.StripePaymentIntentId);
+                }
+                else
+                {
+                    var expectedAmount = (long)(order.TotalAmount * 100);
+                    if (paymentIntent.Amount != expectedAmount || paymentIntent.Currency != "bam")
+                    {
+                        _logger.LogWarning("PaymentIntent {PaymentIntentId} amount/currency mismatch. Expected {Expected} bam, got {Actual} {Currency}",
+                            paymentIntent.Id, expectedAmount, paymentIntent.Amount, paymentIntent.Currency);
+                    }
+                    else if (order.Status == OrderStatus.Pending)
+                    {
+                        await _orderService.MarkAsPaidAsync(orderId);
+                        _logger.LogInformation("Order {OrderId} marked as paid via Stripe webhook", orderId);
+                    }
                 }
             }
         }
@@ -136,19 +186,24 @@ namespace Spotter.Services
              stripeEvent.Type == "payment_intent.canceled")
     {
         var paymentIntent = stripeEvent.Data.Object as PaymentIntent;
-        if (paymentIntent?.Metadata.TryGetValue("orderId", out var orderIdStr) == true)
+        if (paymentIntent?.Metadata.TryGetValue("orderId", out var orderIdStr) == true &&
+            int.TryParse(orderIdStr, out var orderId))
         {
-            if (int.TryParse(orderIdStr, out var orderId))
+            var order = await _dbContext.Orders.FirstOrDefaultAsync(o => o.Id == orderId);
+            if (order != null && order.StripePaymentIntentId == paymentIntent.Id && order.Status == OrderStatus.Pending)
             {
-                var order = await _dbContext.Orders.FirstOrDefaultAsync(o => o.Id == orderId);
-                if (order != null && order.Status == OrderStatus.Pending)
-                {
-                    await _orderService.CancelBySystemAsync(orderId);
-                    _logger.LogInformation("Order {OrderId} cancelled via webhook", orderId);
-                }
+                await _orderService.CancelBySystemAsync(orderId);
+                _logger.LogInformation("Order {OrderId} cancelled via webhook", orderId);
             }
         }
     }
+
+    _dbContext.ProcessedStripeEvents.Add(new Database.ProcessedStripeEvent
+    {
+        StripeEventId = stripeEvent.Id,
+        ProcessedAt = DateTime.UtcNow
+    });
+    await _dbContext.SaveChangesAsync();
 }
 
         public async Task RefundPaymentAsync(string paymentIntentId)

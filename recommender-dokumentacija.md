@@ -59,7 +59,9 @@ A content-based filtering pipeline that featurizes textual data using TF-IDF (Te
 
 ### 4.1. Content-Based Filtering
 
-Content-based filtering recommends items to a user based on the textual characteristics of items the user has previously interacted with, rather than on what similar users have done (which would be collaborative filtering). For Spotter, the content of each event includes its title, description, category name, venue name, and city. The content of each user is represented by the categories they have selected as interests at registration and the categories of events they have previously purchased tickets for.
+Content-based filtering recommends items to a user based on the textual characteristics of items the user has previously interacted with, rather than on what similar users have done (which would be collaborative filtering). For Spotter, the content of each event includes its title, description, and category name. The content of each user is represented by the categories they have selected as interests at registration and the categories of events they have previously purchased tickets for.
+
+**Note:** Venue name and city are NOT currently used as features in the ML model — they are only used for cold-start fallback scoring and explanation generation.
 
 The advantage of content-based filtering for Spotter is that it works even when users have very little overlap in attended events — which is typical for a regional event platform with hundreds of users and only a handful of events per city per month.
 
@@ -70,8 +72,12 @@ All textual inputs are transformed into numeric feature vectors using TF-IDF, ap
 Each event is represented as a single concatenated string of the form:
 
 ```
-"{userProfile} {categoryName} {title} {venueName} {cityName}"
+"{userProfile} {categoryName} {title} {description}"
 ```
+
+Where `userProfile` consists of:
+- Category names from the user's selected interests
+- Category names from events the user has previously purchased
 
 This string is then featurized into a sparse numeric vector that the classifier can consume.
 
@@ -82,7 +88,7 @@ FastTree is a gradient-boosted decision tree implementation from ML.NET. It is w
 The classifier is trained on a binary label:
 
 - **Label = 1 (positive):** The user actually purchased a ticket for this event (extracted from paid orders in the database).
-- **Label = 0 (negative):** Randomly sampled events the user did not interact with, used as negative examples to give the model contrast.
+- **Label = 0 (negative):** Randomly sampled events the user did NOT purchase, used as negative examples to give the model contrast.
 
 ### 4.4. Training Pipeline
 
@@ -90,29 +96,40 @@ The training pipeline is built using the ML.NET fluent API and consists of three
 
 ```csharp
 var pipeline = mlContext.Transforms.Text
-    .FeaturizeText("Features", "Features")
+    .FeaturizeText("FeaturesVector", "Features")
     .Append(mlContext.BinaryClassification.Trainers
         .FastTree(labelColumnName: "Label",
-                  featureColumnName: "Features"));
+                  featureColumnName: "FeaturesVector",
+                  numberOfTrees: 50,
+                  numberOfLeaves: 20,
+                  minimumExampleCountPerLeaf: 1));
 ```
 
 During training, the service:
 
 - Loads all paid orders from the database, joining each order with its event, category, user, and the user's selected interests.
-- Builds a positive training example for each (user, purchased event) pair.
-- Generates an equal number of negative examples from random events the user did not purchase.
-- Trains the FastTree classifier on the combined dataset.
+- Builds a positive training example for each (user, purchased event) pair using the user's profile (interests + categories from purchase history).
+- Generates negative examples from random events the user did NOT interact with, using a synthetic profile to provide contrast.
+- Trains the FastTree classifier on the combined dataset (requires minimum 5 samples).
 - Replaces the previously held in-memory model with the newly trained one.
 
 Concurrent training calls are prevented by a `SemaphoreSlim` guard so that two requests cannot trigger overlapping retraining cycles.
 
-### 4.5. Scoring and Ranking
+### 4.5. Candidate Event Filtering
+
+When generating recommendations, candidate events are filtered to:
+- Active status (`EventStatus.Active`)
+- Not soft-deleted (`IsDeleted = false`)
+- Starting in the future (`StartsAt > DateTime.UtcNow`)
+- Not already attended by the user (based on paid orders)
+
+### 4.6. Scoring and Ranking
 
 When a user opens the Events tab, the mobile app calls `GET /api/recommendations`. The service then:
 
 - Loads the authenticated user including their selected interests and city.
 - Loads the user's previously attended events (paid orders only) so they can be excluded from recommendations.
-- Loads all currently active, upcoming, non-deleted events with their categories, venues, and ticket types.
+- Loads all currently active, upcoming, non-deleted events with their categories.
 - Builds a feature vector for each candidate event using the user's profile string.
 - Runs each feature vector through the trained model's prediction engine to obtain a probability score.
 - Sorts all candidate events by score descending and returns the top 5.
@@ -129,13 +146,13 @@ During registration, every user selects categories they are interested in (e.g. 
 
 When no purchase history exists, the service falls back to a deterministic interest-based scoring routine that ranks events by the following weighted criteria:
 
-- Category match against the user's selected interests (highest weight).
-- Same city as the user's home city.
-- Sales ratio (popularity proxy — fraction of available tickets already sold).
+- Category match against the user's selected interests (highest weight: +0.6).
+- Same city as the user's home city (+0.2).
+- Sales ratio (popularity proxy — fraction of available tickets already sold, up to +0.1).
 
 ### 5.2. Layer 2 — Popularity in the User's City
 
-If the user has neither purchase history nor selected interests, the service falls back to pure popularity-based recommendations within the user's home city. Events with the highest ticket sales ratio in the user's city are surfaced first.
+If the user has neither purchase history nor selected interests, the service falls back to pure popularity-based recommendations within the user's home city. Events with the highest ticket sales ratio in the user's city are surfaced first (+0.4 for city match, up to +0.5 for sales ratio).
 
 ### 5.3. Layer 3 — Global Popularity
 
@@ -164,7 +181,7 @@ The recommender lives in the `Spotter.Services` project under the following file
 
 - `IRecommendationService.cs` — public interface for the service.
 - `RecommendationService.cs` — full implementation of training, scoring, and ranking.
-- `RecommendationTrainingService.cs` — `BackgroundService` that schedules retraining.
+- `RecommendationTrainingService.cs` — `BackgroundService` that schedules retraining every 24 hours.
 - `ML/EventFeatures.cs` — ML.NET input class with the `Features` and `Label` columns.
 - `ML/EventPrediction.cs` — ML.NET output class with the predicted `Probability`.
 
@@ -176,9 +193,8 @@ The controller (`Spotter.WebAPI/Controllers/RecommendationController.cs`) expose
 - **UserInterests** — many-to-many between users and categories, populated at registration.
 - **Orders + OrderItems** — purchase history, filtered to `Status = Paid`.
 - **Events** — candidate events, filtered to Active, non-deleted, and starting in the future.
-- **Categories** — used both for interest matching and for explanation strings.
-- **Venues + Cities** — used for geographic relevance scoring.
-- **TicketTypes** — used to compute the sales ratio (popularity proxy).
+- **Categories** — used for building user profile and for explanation strings.
+- **TicketTypes** — used to compute the sales ratio (popularity proxy) for cold-start fallback.
 
 ### 7.3. Retraining Schedule
 
@@ -240,11 +256,12 @@ The current implementation is a content-based system tailored to the size and gr
 - **Implicit feedback** — incorporate signals beyond paid orders, such as favorites, screen views, and reservations, weighted by confidence.
 - **A/B testing** — measure click-through and conversion rates of recommended events against a baseline to quantify the recommender's impact.
 - **Diversity penalty** — currently the top 5 may all belong to the same category. A diversity-aware re-ranker would ensure a broader spread.
+- **Geographic features** — add venue name and city to the ML feature vector for location-aware scoring beyond the cold-start fallback.
 
 ---
 
 ## 10. Conclusion
 
-The Spotter recommender system delivers personalized event suggestions through a content-based ML.NET pipeline combining TF-IDF text featurization with a FastTree binary classifier, retrained automatically every 24 hours. The cold-start problem is handled through layered fallbacks based on user-declared interests, city, and global popularity. Every recommendation is accompanied by a human-readable explanation, satisfying the explainability requirement defined in the project proposal.
+The Spotter recommender system delivers personalized event suggestions through a content-based ML.NET pipeline combining TF-IDF text featurization with a FastTree binary classifier, retrained automatically every 24 hours via the `RecommendationTrainingService` background service. The cold-start problem is handled through layered fallbacks based on user-declared interests, city, and global popularity. Every recommendation is accompanied by a human-readable explanation, satisfying the explainability requirement defined in the project proposal.
 
 The architecture is intentionally simple and self-contained — no external ML infrastructure is required, the model is trained and held in-memory inside the API process, and recommendations are produced with sub-second latency on a single request. This makes the system practical to deploy and operate as part of the broader Spotter platform without adding operational complexity.

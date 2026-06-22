@@ -54,40 +54,27 @@ class _TicketScannerScreenState extends State<TicketScannerScreen> {
       _lastScannedTicket = null;
     });
 
-    try {
-      final provider = context.read<TicketProvider>();
-      await provider.useTicket(qrPayload);
+    final provider = context.read<TicketProvider>();
+    final result = await provider.useTicket(qrPayload);
 
+    if (!mounted) return;
+
+    if (result != null) {
       setState(() {
         _successMessage = 'Ticket validated successfully!';
+        _lastScannedTicket = result;
         _qrController.clear();
       });
-
-      await _loadTicketDetails(qrPayload, provider);
-    } catch (e) {
+    } else {
       setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _errorMessage = provider.error ?? 'Validation failed';
       });
-    } finally {
-      setState(() {
-        _isProcessing = false;
-      });
-      _focusNode.requestFocus();
     }
-  }
 
-  Future<void> _loadTicketDetails(
-      String qrPayload, TicketProvider provider) async {
-    try {
-      await provider.loadAll(status: 1);
-      final ticket = provider.items.firstWhere(
-        (t) => t.qrCodePayload == qrPayload,
-        orElse: () => throw Exception('Ticket not found'),
-      );
-      setState(() {
-        _lastScannedTicket = ticket;
-      });
-    } catch (_) {}
+    setState(() {
+      _isProcessing = false;
+    });
+    _focusNode.requestFocus();
   }
 
   @override

@@ -311,6 +311,37 @@ Spotter/
 
 ---
 
+## Building for Submission
+
+### Mobile APK
+
+```bash
+cd UI/spotter_mobile
+flutter clean
+flutter build apk --release \
+  --dart-define=API_BASE_URL=http://10.0.2.2:5126 \
+  --dart-define=STRIPE_PUBLISHABLE_KEY=pk_test_YOUR_KEY
+```
+
+APK location: `UI/spotter_mobile/build/app/outputs/flutter-apk/app-release.apk`
+
+### Desktop Windows
+
+```bash
+cd UI/spotter_desktop
+flutter clean
+flutter pub get
+flutter build windows --release \
+  --dart-define=API_BASE_URL=http://localhost:5126
+```
+
+**Important:** ZIP the entire Release folder (not just the .exe):
+`UI/spotter_desktop/build/windows/x64/runner/Release/`
+
+The folder contains all required DLLs including `printing_plugin.dll`. Running only the .exe without the DLLs will fail.
+
+---
+
 ## Recommender System
 
 See [recommender-dokumentacija.md](recommender-dokumentacija.md) for full documentation of the ML.NET recommender system including algorithm description, TF-IDF featurization, FastTree classifier, cold start handling, and API contract.

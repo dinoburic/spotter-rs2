@@ -30,9 +30,18 @@ namespace Spotter.Services.Validators
                 .MinimumLength(6).WithMessage("Password must be at least 6 characters.")
                 .MaximumLength(100).WithMessage("Password cannot exceed 100 characters.");
 
+            RuleFor(x => x.ConfirmPassword)
+                .Equal(x => x.Password).WithMessage("Passwords do not match.");
+
             RuleFor(x => x.PhoneNumber)
                 .MaximumLength(20).WithMessage("Phone number cannot exceed 20 characters.")
                 .When(x => !string.IsNullOrEmpty(x.PhoneNumber));
+
+            RuleFor(x => x.CityId)
+                .GreaterThan(0).WithMessage("City is required.");
+
+            RuleFor(x => x.RoleId)
+                .GreaterThan(0).WithMessage("Role is required.");
         }
     }
 }

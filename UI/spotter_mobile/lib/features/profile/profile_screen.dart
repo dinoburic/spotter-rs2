@@ -8,6 +8,7 @@ import '../events/create_event_screen.dart';
 import '../events/my_events_screen.dart';
 import '../orders/order_history_screen.dart';
 import '../reservations/my_reservations_screen.dart';
+import '../organizer/organizer_dashboard_screen.dart';
 import 'edit_profile_screen.dart';
 import 'change_password_screen.dart';
 import 'edit_interests_screen.dart';
@@ -210,6 +211,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 24),
           if (context.read<AuthProvider>().role == 'Organizer' ||
               context.read<AuthProvider>().role == 'Admin') ...[
+            _buildActionButton(
+              icon: Icons.dashboard,
+              label: 'Organizer Dashboard',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const OrganizerDashboardScreen(),
+                  ),
+                );
+              },
+            ),
             _buildActionButton(
               icon: Icons.add_circle_outline,
               label: 'Create Event',

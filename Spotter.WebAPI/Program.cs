@@ -163,6 +163,8 @@ builder.Services.AddScoped<IStripeService, StripeService>();
 builder.Services.AddSingleton<IRabbitMqPublisher, RabbitMqPublisher>();
 builder.Services.AddScoped<IRecommendationService, RecommendationService>();
 builder.Services.AddScoped<IReportService, ReportService>();
+builder.Services.AddScoped<IOrganizerService, OrganizerService>();
+builder.Services.AddScoped<ISystemSettingService, SystemSettingService>();
 builder.Services.AddHostedService<RecommendationTrainingService>();
 builder.Services.AddHostedService<PendingOrderExpirationService>();
 
@@ -321,6 +323,8 @@ app.UseSwagger();
 app.UseSwaggerUI();
 
 app.UseCors("SpotterPolicy");
+
+app.UseStaticFiles();
 
 app.UseAuthentication();
 app.UseAuthorization();

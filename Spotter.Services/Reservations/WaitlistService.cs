@@ -175,7 +175,7 @@ namespace Spotter.Services
 
             if (entry.UserId != _currentUserService.GetUserId() && !_currentUserService.IsAdmin())
             {
-                throw new ClientException("Access denied.");
+                throw new ForbiddenException("Access denied.");
             }
 
             var removedPosition = entry.Position;

@@ -28,6 +28,7 @@ dependencies:
   permission_handler_windows: ^0.2.1
   geolocator_windows: ^0.2.5
   path_provider_windows: ^2.3.0
+  image_picker: ^1.0.7
 
 dev_dependencies:
   flutter_test:

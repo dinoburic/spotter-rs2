@@ -22,4 +22,5 @@ class ApiConstants {
   static const String badges = '/api/badges';
   static const String waitlist = '/api/waitlist';
   static const String reports = '/api/reports';
+  static const String systemSettings = '/api/system-settings';
 }

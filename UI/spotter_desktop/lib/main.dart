@@ -15,6 +15,7 @@ import 'core/providers/review_provider.dart';
 import 'core/providers/reservation_provider.dart';
 import 'core/providers/user_provider.dart';
 import 'core/providers/dashboard_provider.dart';
+import 'core/providers/system_setting_provider.dart';
 import 'features/auth/login_screen.dart';
 import 'features/dashboard/dashboard_screen.dart';
 
@@ -83,6 +84,11 @@ class SpotterAdminApp extends StatelessWidget {
         ChangeNotifierProxyProvider<AuthProvider, DashboardProvider>(
           create: (ctx) =>
               DashboardProvider(BaseProvider(), ctx.read<AuthProvider>()),
+          update: (ctx, auth, prev) => prev!..updateAuth(auth),
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, SystemSettingProvider>(
+          create: (ctx) =>
+              SystemSettingProvider(BaseProvider(), ctx.read<AuthProvider>()),
           update: (ctx, auth, prev) => prev!..updateAuth(auth),
         ),
       ],

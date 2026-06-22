@@ -56,4 +56,24 @@ class TicketResponse {
       cityName: json['cityName'] as String?,
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'userId': userId,
+      'userFullName': userFullName,
+      'eventId': eventId,
+      'eventTitle': eventTitle,
+      'ticketTypeName': ticketTypeName,
+      'typeName': typeName,
+      'qrCodePayload': qrCodePayload,
+      'status': status,
+      'statusName': statusName,
+      'issuedAt': issuedAt.toIso8601String(),
+      'usedAt': usedAt?.toIso8601String(),
+      'eventStartsAt': eventStartsAt?.toIso8601String(),
+      'venueName': venueName,
+      'cityName': cityName,
+    };
+  }
 }

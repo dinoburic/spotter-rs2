@@ -5,7 +5,8 @@ class UserInsertRequest {
   final String email;
   final String password;
   final String confirmPassword;
-  final int? cityId;
+  final int cityId;
+  final int roleId;
   final String? phoneNumber;
 
   UserInsertRequest({
@@ -15,7 +16,8 @@ class UserInsertRequest {
     required this.email,
     required this.password,
     required this.confirmPassword,
-    this.cityId,
+    required this.cityId,
+    required this.roleId,
     this.phoneNumber,
   });
 
@@ -27,6 +29,7 @@ class UserInsertRequest {
         'password': password,
         'confirmPassword': confirmPassword,
         'cityId': cityId,
+        'roleId': roleId,
         'phoneNumber': phoneNumber,
       };
 }

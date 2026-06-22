@@ -14,5 +14,7 @@ namespace Spotter.Services
         Task<EventResponse> ActivateAsync(int id);
         Task<EventResponse> CancelAsync(int id);
         Task<EventResponse> CompleteAsync(int id);
+        Task<List<UserResponse>> GetFriendsAttendingAsync(int eventId);
+        Task<string> UploadCoverImageAsync(int eventId, Microsoft.AspNetCore.Http.IFormFile file, string webRootPath);
     }
 }

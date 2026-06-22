@@ -66,6 +66,22 @@ class _MyTicketsScreenState extends State<MyTicketsScreen>
 
     final content = Column(
       children: [
+        if (ticketProvider.isOffline)
+          Container(
+            color: Colors.orange,
+            padding: const EdgeInsets.all(8),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.wifi_off, color: Colors.white, size: 16),
+                SizedBox(width: 8),
+                Text(
+                  'Offline — showing cached tickets',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ],
+            ),
+          ),
         TabBar(
           controller: _tabController,
           labelColor: AppColors.primary,

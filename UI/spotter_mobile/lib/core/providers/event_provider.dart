@@ -313,4 +313,20 @@ class EventProvider extends ChangeNotifier {
     error = null;
     notifyListeners();
   }
+
+  Future<String?> uploadCoverImage(int eventId, String filePath) async {
+    try {
+      final result = await _baseProvider.uploadFile<Map<String, dynamic>>(
+        '${ApiConstants.events}/$eventId/cover-image',
+        filePath,
+        'file',
+        fromJson: (json) => json as Map<String, dynamic>,
+      );
+      return result['url'] as String?;
+    } catch (e) {
+      error = e.toString().replaceAll('Exception: ', '');
+      notifyListeners();
+      return null;
+    }
+  }
 }

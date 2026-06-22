@@ -10,6 +10,7 @@ class BaseProvider {
   String? _token;
   Future<void> Function()? onUnauthorized;
   bool _isRedirecting = false;
+  bool _isRefreshing = false;
 
   BaseProvider() {
     _dio = Dio(BaseOptions(
@@ -47,6 +48,12 @@ class BaseProvider {
       );
       return fromJson(response.data);
     } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        return await _handleUnauthorizedWithRetry<T>(
+          () => get<T>(path, queryParameters: queryParameters, fromJson: fromJson),
+          e.requestOptions.path,
+        );
+      }
       throw _handleError(e);
     }
   }
@@ -64,6 +71,12 @@ class BaseProvider {
       );
       return fromJson(response.data);
     } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        return await _handleUnauthorizedWithRetry<T>(
+          () => post<T>(path, data: data, fromJson: fromJson),
+          e.requestOptions.path,
+        );
+      }
       throw _handleError(e);
     }
   }
@@ -79,6 +92,13 @@ class BaseProvider {
         options: Options(headers: _headers()),
       );
     } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        await _handleUnauthorizedWithRetry<void>(
+          () => postAction(path, data: data),
+          e.requestOptions.path,
+        );
+        return;
+      }
       throw _handleError(e);
     }
   }
@@ -96,6 +116,12 @@ class BaseProvider {
       );
       return fromJson(response.data);
     } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        return await _handleUnauthorizedWithRetry<T>(
+          () => put<T>(path, data: data, fromJson: fromJson),
+          e.requestOptions.path,
+        );
+      }
       throw _handleError(e);
     }
   }
@@ -107,48 +133,156 @@ class BaseProvider {
         options: Options(headers: _headers()),
       );
     } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        await _handleUnauthorizedWithRetry<void>(
+          () => delete(path),
+          e.requestOptions.path,
+        );
+        return;
+      }
       throw _handleError(e);
     }
   }
 
-  Future<void> _handleUnauthorized(String? requestPath) async {
-    if (_isRedirecting) return;
-    if (requestPath == ApiConstants.login ||
-        requestPath == ApiConstants.register) return;
+  Future<T> uploadFile<T>(
+    String path,
+    String filePath,
+    String fieldName, {
+    required T Function(dynamic) fromJson,
+  }) async {
+    try {
+      final formData = FormData.fromMap({
+        fieldName: await MultipartFile.fromFile(filePath),
+      });
+      final response = await _dio.post(
+        path,
+        data: formData,
+        options: Options(
+          headers: {
+            'Authorization': _token != null ? 'Bearer $_token' : null,
+          },
+          contentType: 'multipart/form-data',
+        ),
+      );
+      return fromJson(response.data);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        return await _handleUnauthorizedWithRetry<T>(
+          () => uploadFile<T>(path, filePath, fieldName, fromJson: fromJson),
+          e.requestOptions.path,
+        );
+      }
+      throw _handleError(e);
+    }
+  }
 
+  Future<T> _handleUnauthorizedWithRetry<T>(
+    Future<T> Function() retryRequest,
+    String? requestPath,
+  ) async {
+    if (requestPath == ApiConstants.login ||
+        requestPath == ApiConstants.register ||
+        requestPath == ApiConstants.refresh) {
+      _redirectToLogin();
+      throw Exception('Session expired. Please log in again.');
+    }
+
+    if (_isRefreshing) {
+      _redirectToLogin();
+      throw Exception('Session expired. Please log in again.');
+    }
+
+    _isRefreshing = true;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final refreshToken = prefs.getString('refreshToken') ?? '';
+
+      if (refreshToken.isEmpty) {
+        _redirectToLogin();
+        throw Exception('Session expired. Please log in again.');
+      }
+
+      final response = await _dio.post(
+        ApiConstants.refresh,
+        data: {'refreshToken': refreshToken},
+      );
+
+      if (response.statusCode == 200) {
+        final data = response.data;
+        final newToken = data['accessToken'] as String;
+        await prefs.setString('accessToken', newToken);
+        _token = newToken;
+        _isRefreshing = false;
+        return await retryRequest();
+      } else {
+        _redirectToLogin();
+        throw Exception('Session expired. Please log in again.');
+      }
+    } catch (e) {
+      _isRefreshing = false;
+      _redirectToLogin();
+      throw Exception('Session expired. Please log in again.');
+    }
+  }
+
+  void _redirectToLogin() {
+    if (_isRedirecting) return;
     _isRedirecting = true;
 
-    await onUnauthorized?.call();
+    onUnauthorized?.call();
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('accessToken');
-    await prefs.remove('refreshToken');
-    await prefs.remove('userId');
-    await prefs.remove('username');
-    await prefs.remove('role');
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.remove('accessToken');
+      prefs.remove('refreshToken');
+      prefs.remove('userId');
+      prefs.remove('username');
+      prefs.remove('role');
+    });
 
     navigatorKey.currentState?.pushAndRemoveUntil(
       MaterialPageRoute(builder: (context) => const LoginScreen()),
       (route) => false,
     );
 
-    _isRedirecting = false;
+    Future.delayed(const Duration(milliseconds: 500), () {
+      _isRedirecting = false;
+    });
   }
 
   Exception _handleError(DioException e) {
-    if (e.response?.statusCode == 401) {
-      _handleUnauthorized(e.requestOptions.path);
-      return Exception('Session expired');
-    }
     if (e.response?.data != null) {
       final data = e.response!.data;
-      if (data is Map && data.containsKey('message')) {
-        return Exception(data['message']);
+      if (data is Map) {
+        if (data.containsKey('error')) {
+          return Exception(data['error']);
+        }
+        if (data.containsKey('errors')) {
+          final errors = data['errors'];
+          if (errors is Map) {
+            final messages = errors.entries
+                .map((entry) {
+                  final value = entry.value;
+                  if (value is List) {
+                    return value.join(', ');
+                  }
+                  return value.toString();
+                })
+                .join('; ');
+            return Exception(messages);
+          }
+        }
+        if (data.containsKey('message')) {
+          return Exception(data['message']);
+        }
+        if (data.containsKey('title')) {
+          return Exception(data['title']);
+        }
       }
-      if (data is Map && data.containsKey('title')) {
-        return Exception(data['title']);
+      if (data is String && data.isNotEmpty) {
+        return Exception(data);
       }
     }
-    return Exception(e.message ?? 'An error occurred');
+    return Exception(e.message ?? 'Request failed (${e.response?.statusCode ?? "unknown"})');
   }
 }

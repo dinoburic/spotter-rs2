@@ -76,14 +76,42 @@ namespace Spotter.Services
             if (await _dbContext.Users.AnyAsync(u => u.Username == request.Username))
                 throw new ClientException($"Username '{request.Username}' is already in use.");
 
-            var entity = MapInsertRequestToEntity(request);
-            entity.CreatedAt = DateTime.UtcNow;
+            if (!await _dbContext.Cities.AnyAsync(c => c.Id == request.CityId))
+                throw new ClientException($"City with id {request.CityId} not found.");
 
-            _dbContext.Users.Add(entity);
-            await _dbContext.SaveChangesAsync();
+            if (!await _dbContext.Roles.AnyAsync(r => r.Id == request.RoleId))
+                throw new ClientException($"Role with id {request.RoleId} not found.");
 
-            _logger.LogInformation("User {UserId} created successfully", entity.Id);
-            return _mapper.Map<UserResponse>(entity);
+            await using var transaction = await _dbContext.Database.BeginTransactionAsync();
+            try
+            {
+                var entity = MapInsertRequestToEntity(request);
+                entity.CreatedAt = DateTime.UtcNow;
+                entity.IsActive = true;
+                entity.CityId = request.CityId;
+
+                _dbContext.Users.Add(entity);
+                await _dbContext.SaveChangesAsync();
+
+                _dbContext.UserRoles.Add(new UserRole
+                {
+                    UserId = entity.Id,
+                    RoleId = request.RoleId,
+                    DateAssigned = DateTime.UtcNow
+                });
+                await _dbContext.SaveChangesAsync();
+
+                await transaction.CommitAsync();
+
+                _logger.LogInformation("User {UserId} created successfully with role {RoleId}", entity.Id, request.RoleId);
+
+                return await GetByIdAsync(entity.Id);
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
         }
 
         public override async Task<UserResponse> UpdateAsync(int id, UserUpdateRequest request)
@@ -211,13 +239,27 @@ namespace Spotter.Services
         {
             _logger.LogInformation("Updating interests for user {UserId}", userId);
 
+            var distinctIds = request.CategoryIds.Distinct().Where(id => id > 0).ToList();
+
+            if (distinctIds.Count != request.CategoryIds.Count)
+                throw new ClientException("Category IDs must be distinct and positive.");
+
+            var validCategoryIds = await _dbContext.Categories
+                .Where(c => distinctIds.Contains(c.Id))
+                .Select(c => c.Id)
+                .ToListAsync();
+
+            var invalidIds = distinctIds.Except(validCategoryIds).ToList();
+            if (invalidIds.Any())
+                throw new ClientException($"Invalid category IDs: {string.Join(", ", invalidIds)}");
+
             var existing = await _dbContext.UserInterests
                 .Where(ui => ui.UserId == userId)
                 .ToListAsync();
 
             _dbContext.UserInterests.RemoveRange(existing);
 
-            var newInterests = request.CategoryIds.Select(categoryId => new UserInterest
+            var newInterests = distinctIds.Select(categoryId => new UserInterest
             {
                 UserId = userId,
                 CategoryId = categoryId,

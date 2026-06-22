@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/providers/event_provider.dart';
@@ -22,6 +24,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   int? _selectedVenueId;
   DateTime? _startsAt;
   DateTime? _endsAt;
+  XFile? _coverImage;
 
   String? _categoryError;
   String? _venueError;
@@ -29,6 +32,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   String? _endsAtError;
 
   bool _isSubmitting = false;
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -46,6 +50,20 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     _descriptionController.dispose();
     _capacityController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickCoverImage() async {
+    final XFile? image = await _picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1920,
+      maxHeight: 1080,
+      imageQuality: 85,
+    );
+    if (image != null) {
+      setState(() {
+        _coverImage = image;
+      });
+    }
   }
 
   Future<void> _pickDateTime(bool isStart) async {
@@ -147,6 +165,10 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     setState(() => _isSubmitting = false);
 
     if (createdEventId != null) {
+      if (_coverImage != null) {
+        await eventProvider.uploadCoverImage(createdEventId, _coverImage!.path);
+      }
+
       final addTickets = await showDialog<bool>(
         context: context,
         barrierDismissible: false,
@@ -358,6 +380,71 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                   }
                   return null;
                 },
+              ),
+              const SizedBox(height: 16),
+
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Cover Image (optional)',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  InkWell(
+                    onTap: _pickCoverImage,
+                    child: Container(
+                      height: 150,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey[400]!),
+                        borderRadius: BorderRadius.circular(8),
+                        color: Colors.grey[100],
+                      ),
+                      child: _coverImage != null
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.file(
+                                File(_coverImage!.path),
+                                fit: BoxFit.cover,
+                                width: double.infinity,
+                              ),
+                            )
+                          : Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.add_photo_alternate_outlined,
+                                  size: 48,
+                                  color: Colors.grey[500],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Tap to select image',
+                                  style: TextStyle(
+                                    color: Colors.grey[500],
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ),
+                  if (_coverImage != null)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: () => setState(() => _coverImage = null),
+                        icon: const Icon(Icons.clear, size: 18),
+                        label: const Text('Remove'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.error,
+                        ),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(height: 24),
 

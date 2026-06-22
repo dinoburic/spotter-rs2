@@ -200,7 +200,7 @@ namespace Spotter.Services
 
             var userId = _currentUserService.GetUserId();
             if (friendship.RequesterId != userId && friendship.AddresseeId != userId)
-                throw new ClientException("Access denied.");
+                throw new ForbiddenException("Access denied.");
 
             friendship.Status = FriendshipStatus.Blocked;
             friendship.RespondedAt = DateTime.UtcNow;
@@ -223,7 +223,7 @@ namespace Spotter.Services
 
             var userId = _currentUserService.GetUserId();
             if (friendship.RequesterId != userId && friendship.AddresseeId != userId)
-                throw new ClientException("Access denied.");
+                throw new ForbiddenException("Access denied.");
 
             _dbContext.Friendships.Remove(friendship);
             await _dbContext.SaveChangesAsync();

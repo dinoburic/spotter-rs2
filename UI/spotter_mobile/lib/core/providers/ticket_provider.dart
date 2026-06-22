@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'base_provider.dart';
@@ -12,6 +14,7 @@ class TicketProvider extends ChangeNotifier {
   List<TicketResponse> cancelledTickets = [];
   final int pageSize = 20;
   bool isLoading = false;
+  bool isOffline = false;
   String? error;
   final Map<int, int> _pages = {0: 1, 1: 1, 2: 1};
   final Map<int, bool> _hasMore = {0: true, 1: true, 2: true};
@@ -26,6 +29,7 @@ class TicketProvider extends ChangeNotifier {
   Future<void> loadTickets({bool refresh = false}) async {
     isLoading = true;
     error = null;
+    isOffline = false;
     notifyListeners();
 
     try {
@@ -34,8 +38,17 @@ class TicketProvider extends ChangeNotifier {
         loadTicketsByStatus(1, refresh: refresh),
         loadTicketsByStatus(2, refresh: refresh),
       ]);
+      await _saveTicketsOffline();
     } catch (e) {
-      error = e.toString().replaceAll('Exception: ', '');
+      final errorStr = e.toString();
+      if (errorStr.contains('SocketException') ||
+          errorStr.contains('network') ||
+          errorStr.contains('Connection refused')) {
+        await _loadCachedTickets();
+        isOffline = true;
+      } else {
+        error = errorStr.replaceAll('Exception: ', '');
+      }
     } finally {
       isLoading = false;
       notifyListeners();
@@ -80,8 +93,20 @@ class TicketProvider extends ChangeNotifier {
           await _saveQrCodeLocally(ticket);
         }
       }
+      isOffline = false;
+    } on SocketException {
+      await _loadCachedTickets();
+      isOffline = true;
     } catch (e) {
-      error = e.toString().replaceAll('Exception: ', '');
+      final errorStr = e.toString();
+      if (errorStr.contains('SocketException') ||
+          errorStr.contains('network') ||
+          errorStr.contains('Connection refused')) {
+        await _loadCachedTickets();
+        isOffline = true;
+      } else {
+        error = errorStr.replaceAll('Exception: ', '');
+      }
     } finally {
       _loadingStatuses.remove(status);
       notifyListeners();
@@ -108,10 +133,45 @@ class TicketProvider extends ChangeNotifier {
         fromJson: (json) => TicketResponse.fromJson(json),
       );
     } catch (e) {
+      final allTickets = [...activeTickets, ...usedTickets, ...cancelledTickets];
+      final cached = allTickets.where((t) => t.id == id).firstOrNull;
+      if (cached != null) {
+        isOffline = true;
+        return cached;
+      }
       error = e.toString().replaceAll('Exception: ', '');
       notifyListeners();
       return null;
     }
+  }
+
+  Future<void> _saveTicketsOffline() async {
+    final prefs = await SharedPreferences.getInstance();
+    final allTickets = {
+      'active': activeTickets.map((t) => t.toJson()).toList(),
+      'used': usedTickets.map((t) => t.toJson()).toList(),
+      'cancelled': cancelledTickets.map((t) => t.toJson()).toList(),
+    };
+    await prefs.setString('cached_tickets', jsonEncode(allTickets));
+  }
+
+  Future<void> _loadCachedTickets() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('cached_tickets');
+    if (raw == null) return;
+
+    try {
+      final data = jsonDecode(raw) as Map<String, dynamic>;
+      activeTickets = (data['active'] as List? ?? [])
+          .map((e) => TicketResponse.fromJson(e as Map<String, dynamic>))
+          .toList();
+      usedTickets = (data['used'] as List? ?? [])
+          .map((e) => TicketResponse.fromJson(e as Map<String, dynamic>))
+          .toList();
+      cancelledTickets = (data['cancelled'] as List? ?? [])
+          .map((e) => TicketResponse.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } catch (_) {}
   }
 
   Future<void> _saveQrCodeLocally(TicketResponse ticket) async {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'base_provider.dart';
 import '../constants/api_constants.dart';
 import '../models/user_suggestion_response.dart';
+import '../models/user_response.dart';
 import '../models/friendship_response.dart';
 import '../models/page_result.dart';
 
@@ -12,6 +13,7 @@ class FriendshipProvider extends ChangeNotifier {
   List<FriendshipResponse> pendingRequests = [];
   List<UserSuggestionResponse> suggestions = [];
   List<UserSuggestionResponse> searchResults = [];
+  List<UserResponse> friendsAttending = [];
 
   bool isLoading = false;
   bool isSearching = false;
@@ -195,6 +197,27 @@ class FriendshipProvider extends ChangeNotifier {
 
   void clearError() {
     error = null;
+    notifyListeners();
+  }
+
+  Future<void> loadFriendsAttending(int eventId) async {
+    try {
+      final result = await _baseProvider.get<List<dynamic>>(
+        '${ApiConstants.events}/$eventId/friends-attending',
+        fromJson: (json) => json as List<dynamic>,
+      );
+      friendsAttending = result
+          .map((e) => UserResponse.fromJson(e as Map<String, dynamic>))
+          .toList();
+      notifyListeners();
+    } catch (_) {
+      friendsAttending = [];
+      notifyListeners();
+    }
+  }
+
+  void clearFriendsAttending() {
+    friendsAttending = [];
     notifyListeners();
   }
 }

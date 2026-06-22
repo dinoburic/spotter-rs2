@@ -120,7 +120,7 @@ namespace Spotter.Services
                 throw new NotFoundException("Order not found.");
 
             if (!_currentUserService.IsAdmin() && order.UserId != _currentUserService.GetUserId())
-                throw new ClientException("Access denied.");
+                throw new ForbiddenException("Access denied.");
 
             return _mapper.Map<OrderResponse>(order);
         }

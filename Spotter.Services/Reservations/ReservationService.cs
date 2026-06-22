@@ -103,7 +103,7 @@ namespace Spotter.Services
                 throw new NotFoundException("Reservation not found.");
 
             if (!_currentUserService.IsAdmin() && reservation.UserId != _currentUserService.GetUserId())
-                throw new ClientException("Access denied.");
+                throw new ForbiddenException("Access denied.");
 
             return _mapper.Map<ReservationResponse>(reservation);
         }
@@ -272,7 +272,7 @@ namespace Spotter.Services
             var userId = _currentUserService.GetUserId();
 
             if (!isAdmin && reservation.UserId != userId)
-                throw new ClientException("Access denied.");
+                throw new ForbiddenException("Access denied.");
 
             if (reservation.Status == ReservationStatus.Pending && reservation.TicketType != null)
             {

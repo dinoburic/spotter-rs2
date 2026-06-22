@@ -96,7 +96,7 @@ namespace Spotter.Services
                 throw new NotFoundException("Ticket not found.");
 
             if (!_currentUserService.IsAdmin() && ticket.UserId != _currentUserService.GetUserId())
-                throw new ClientException("Access denied.");
+                throw new ForbiddenException("Access denied.");
 
             return _mapper.Map<TicketResponse>(ticket);
         }
@@ -117,15 +117,33 @@ namespace Spotter.Services
                 throw new NotFoundException("Ticket not found.");
             }
 
+            if (ticket.Status == TicketStatus.Used)
+                throw new ClientException("This ticket has already been used.");
+
+            if (ticket.Status != TicketStatus.Active)
+                throw new ClientException($"Ticket is not active (status: {ticket.Status}).");
+
+            var order = ticket.OrderItem.Order;
+            if (order.Status != OrderStatus.Paid)
+                throw new ClientException("Order is not in paid status.");
+
+            var eventEntity = order.Event;
+            if (eventEntity.Status == EventStatus.Cancelled)
+                throw new ClientException("Event has been cancelled.");
+
+            var now = DateTime.UtcNow;
+            if (eventEntity.StartsAt > now.AddHours(2))
+                throw new ClientException("Event hasn't started yet (check-in opens 2 hours before).");
+
+            if (eventEntity.EndsAt < now.AddHours(-24))
+                throw new ClientException("Event ended more than 24 hours ago.");
+
             var currentUserId = _currentUserService.GetUserId();
             var isAdmin = _currentUserService.IsAdmin();
             var isOrganizer = _currentUserService.IsInRole(Roles.Organizer);
 
-            if (!isAdmin && !(isOrganizer && ticket.OrderItem.Order.Event.OrganizerId == currentUserId))
-                throw new ClientException("Only admins or event organizers can validate tickets.");
-
-            if (ticket.OrderItem.Order.Event.StartsAt > DateTime.UtcNow.AddHours(2))
-                throw new ClientException("Event has not started yet.");
+            if (!isAdmin && !(isOrganizer && eventEntity.OrganizerId == currentUserId))
+                throw new ForbiddenException("Only admins or event organizers can validate tickets.");
 
             _ticketStateMachine.Transition(ticket, TicketStatus.Used);
             ticket.UsedAt = DateTime.UtcNow;

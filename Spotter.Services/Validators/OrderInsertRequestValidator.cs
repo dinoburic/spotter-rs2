@@ -9,6 +9,9 @@ namespace Spotter.Services.Validators
         {
             RuleFor(x => x.EventId).GreaterThan(0);
             RuleFor(x => x.Items).NotEmpty().Must(items => items.Count > 0).WithMessage("Order must contain at least one item.");
+            RuleFor(x => x.Items)
+                .Must(items => items.Select(i => i.TicketTypeId).Distinct().Count() == items.Count)
+                .WithMessage("Duplicate ticket types in the same order are not allowed. Increase quantity instead.");
             RuleForEach(x => x.Items).ChildRules(item =>
             {
                 item.RuleFor(i => i.TicketTypeId).GreaterThan(0);

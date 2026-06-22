@@ -147,8 +147,19 @@ class _MyReservationsScreenState extends State<MyReservationsScreen> {
     );
   }
 
+  String _formatTimeRemaining(DateTime expiresAt) {
+    final remaining = expiresAt.difference(DateTime.now());
+    if (remaining.isNegative) return 'Expired';
+    final minutes = remaining.inMinutes;
+    final seconds = remaining.inSeconds % 60;
+    return '${minutes}m ${seconds}s remaining';
+  }
+
   Widget _buildReservationCard(ReservationResponse reservation) {
     final statusColor = _getStatusColor(reservation.status);
+    final isPending = reservation.status == 0;
+    final hasExpiry = isPending && reservation.expiresAt != null;
+    final isExpired = hasExpiry && reservation.expiresAt!.isBefore(DateTime.now());
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -194,6 +205,17 @@ class _MyReservationsScreenState extends State<MyReservationsScreen> {
             const SizedBox(height: 8),
             Row(
               children: [
+                Icon(Icons.confirmation_number_outlined, size: 14, color: AppColors.textSecondary),
+                const SizedBox(width: 4),
+                Text(
+                  '${reservation.ticketTypeName} x${reservation.quantity}',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
                 Icon(
                   Icons.calendar_today_outlined,
                   size: 14,
@@ -209,6 +231,31 @@ class _MyReservationsScreenState extends State<MyReservationsScreen> {
                 ),
               ],
             ),
+            if (hasExpiry) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isExpired ? AppColors.error.withValues(alpha: 0.1) : Colors.orange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.timer_outlined, size: 14, color: isExpired ? AppColors.error : Colors.orange),
+                    const SizedBox(width: 4),
+                    Text(
+                      _formatTimeRemaining(reservation.expiresAt!),
+                      style: TextStyle(
+                        color: isExpired ? AppColors.error : Colors.orange,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             if (reservation.auditNote != null) ...[
               const SizedBox(height: 8),
               Text(
@@ -220,7 +267,7 @@ class _MyReservationsScreenState extends State<MyReservationsScreen> {
                 ),
               ),
             ],
-            if (reservation.status == 0) ...[
+            if (isPending && !isExpired) ...[
               const SizedBox(height: 12),
               Align(
                 alignment: Alignment.centerRight,

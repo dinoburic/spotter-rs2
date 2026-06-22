@@ -4,10 +4,12 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/providers/event_provider.dart';
 import '../../core/providers/favorite_provider.dart';
 import '../../core/providers/review_provider.dart';
+import '../../core/providers/friendship_provider.dart';
 import '../../core/models/event_response.dart';
 import '../../core/models/reservation_insert_request.dart';
 import '../../core/providers/reservation_provider.dart';
@@ -26,6 +28,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   EventResponse? _event;
   bool _isLoading = true;
   bool _isDescriptionExpanded = false;
+  String? _distanceKm;
 
   @override
   void initState() {
@@ -43,6 +46,10 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       await eventProvider.loadTicketTypes(widget.eventId);
       if (!mounted) return;
       await context.read<ReviewProvider>().loadReviewsForEvent(widget.eventId);
+      if (!mounted) return;
+      await context.read<FriendshipProvider>().loadFriendsAttending(widget.eventId);
+      if (!mounted) return;
+      _calculateDistance(event);
     }
     if (!mounted) return;
     setState(() {
@@ -51,46 +58,128 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     });
   }
 
+  Future<void> _calculateDistance(EventResponse event) async {
+    if (event.venueLatitude == null || event.venueLongitude == null) return;
+
+    try {
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.low,
+      );
+
+      final distanceMeters = Geolocator.distanceBetween(
+        position.latitude,
+        position.longitude,
+        event.venueLatitude!,
+        event.venueLongitude!,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _distanceKm = (distanceMeters / 1000).toStringAsFixed(1);
+      });
+    } catch (_) {}
+  }
+
   String _formatDateTime(DateTime date) {
     return DateFormat('EEEE, MMMM d, yyyy · HH:mm').format(date);
   }
 
-  Future<void> _confirmReservation() async {
+  Future<void> _showReservationDialog() async {
+    final eventProvider = context.read<EventProvider>();
+    final ticketTypes = eventProvider.ticketTypes;
+    if (ticketTypes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No ticket types available for this event.')),
+      );
+      return;
+    }
+    int? selectedTicketTypeId = ticketTypes.first.id;
+    int quantity = 1;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Confirm Reservation'),
-        content: const Text('Are you sure you want to reserve a spot for this event?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Reserve Spot'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Ticket type:'),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<int>(
+                value: selectedTicketTypeId,
+                isExpanded: true,
+                items: ticketTypes.map((tt) {
+                  return DropdownMenuItem(
+                    value: tt.id,
+                    child: Text('${tt.name} (${tt.price.toStringAsFixed(2)} BAM)'),
+                  );
+                }).toList(),
+                onChanged: (val) => setDialogState(() => selectedTicketTypeId = val),
+              ),
+              const SizedBox(height: 16),
+              const Text('Quantity:'),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.remove_circle_outline),
+                    onPressed: quantity > 1 ? () => setDialogState(() => quantity--) : null,
+                  ),
+                  Text('$quantity', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  IconButton(
+                    icon: const Icon(Icons.add_circle_outline),
+                    onPressed: quantity < 10 ? () => setDialogState(() => quantity++) : null,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'This reservation holds your spot for 15 minutes.',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Reserve'),
-          ),
-        ],
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Reserve')),
+          ],
+        ),
       ),
     );
-    if (confirmed == true && mounted) {
-      _createReservation();
+    if (confirmed == true && mounted && selectedTicketTypeId != null) {
+      _createReservation(selectedTicketTypeId!, quantity);
     }
   }
 
-  Future<void> _createReservation() async {
+  Future<void> _createReservation(int ticketTypeId, int quantity) async {
     final reservationProvider = context.read<ReservationProvider>();
-    final request = ReservationInsertRequest(eventId: widget.eventId);
+    final request = ReservationInsertRequest(
+      eventId: widget.eventId,
+      ticketTypeId: ticketTypeId,
+      quantity: quantity,
+    );
     final result = await reservationProvider.createReservation(request);
-
-    if (mounted && result != null) {
+    if (!mounted) return;
+    if (result != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Reservation created successfully!'),
+          content: Text('Reservation created! Complete checkout within 15 minutes.'),
           backgroundColor: AppColors.success,
         ),
       );
-    } else if (mounted && reservationProvider.error != null) {
+    } else if (reservationProvider.error != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(reservationProvider.error!),
@@ -230,6 +319,19 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                       if (event.cityName != null && event.cityName!.isNotEmpty) event.cityName!,
                     ].join(', '),
                   ),
+                  if (_distanceKm != null) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(Icons.near_me, size: 16, color: AppColors.textSecondary),
+                        const SizedBox(width: 4),
+                        Text(
+                          '$_distanceKm km away',
+                          style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ],
                   if (event.venueLatitude != null &&
                       event.venueLongitude != null) ...[
                     const SizedBox(height: 16),
@@ -274,6 +376,52 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                       ),
                     ),
                   ],
+                  Consumer<FriendshipProvider>(
+                    builder: (context, friendProvider, _) {
+                      if (friendProvider.friendsAttending.isEmpty) {
+                        return const SizedBox();
+                      }
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Divider(height: 32),
+                          Text(
+                            '${friendProvider.friendsAttending.length} friend(s) attending',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            height: 50,
+                            child: ListView.builder(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: friendProvider.friendsAttending.length,
+                              itemBuilder: (context, index) {
+                                final friend = friendProvider.friendsAttending[index];
+                                return Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: Tooltip(
+                                    message: friend.fullName,
+                                    child: CircleAvatar(
+                                      radius: 22,
+                                      backgroundColor: AppColors.primary.withValues(alpha: 0.2),
+                                      child: Text(
+                                        friend.fullName.isNotEmpty ? friend.fullName[0].toUpperCase() : '?',
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.primary,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
                   if (event.description != null) ...[
                     const Divider(height: 32),
                     Text(
@@ -403,7 +551,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           child: Row(
             children: [
               OutlinedButton(
-                onPressed: _confirmReservation,
+                onPressed: _showReservationDialog,
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                 ),

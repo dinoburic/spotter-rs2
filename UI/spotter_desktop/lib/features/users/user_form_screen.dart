@@ -28,6 +28,7 @@ class _UserFormScreenState extends State<UserFormScreen> {
 
   List<CityResponse> _cities = [];
   int? _selectedCityId;
+  int? _selectedRoleId;
   bool _isLoading = false;
   bool _isInitLoading = true;
 
@@ -37,6 +38,14 @@ class _UserFormScreenState extends State<UserFormScreen> {
   String? _emailError;
   String? _passwordError;
   String? _confirmPasswordError;
+  String? _cityError;
+  String? _roleError;
+
+  static const List<Map<String, dynamic>> _roles = [
+    {'id': 1, 'name': 'Admin'},
+    {'id': 2, 'name': 'Organizer'},
+    {'id': 3, 'name': 'User'},
+  ];
 
   bool get _isEditing => widget.userId != null;
 
@@ -94,6 +103,8 @@ class _UserFormScreenState extends State<UserFormScreen> {
       _emailError = null;
       _passwordError = null;
       _confirmPasswordError = null;
+      _cityError = null;
+      _roleError = null;
     });
 
     if (_firstNameController.text.isEmpty) {
@@ -128,6 +139,14 @@ class _UserFormScreenState extends State<UserFormScreen> {
         setState(() => _confirmPasswordError = 'Passwords do not match');
         isValid = false;
       }
+      if (_selectedCityId == null) {
+        setState(() => _cityError = 'City is required');
+        isValid = false;
+      }
+      if (_selectedRoleId == null) {
+        setState(() => _roleError = 'Role is required');
+        isValid = false;
+      }
     }
 
     return isValid;
@@ -159,7 +178,8 @@ class _UserFormScreenState extends State<UserFormScreen> {
           password: _passwordController.text,
           confirmPassword: _confirmPasswordController.text,
           phoneNumber: _phoneController.text.isEmpty ? null : _phoneController.text,
-          cityId: _selectedCityId,
+          cityId: _selectedCityId!,
+          roleId: _selectedRoleId!,
         );
         await provider.insert(request);
       }
@@ -272,24 +292,50 @@ class _UserFormScreenState extends State<UserFormScreen> {
                   const SizedBox(height: 16),
                   DropdownButtonFormField<int>(
                     value: _selectedCityId,
-                    decoration: const InputDecoration(
-                      labelText: 'City (optional)',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: _isEditing ? 'City (optional)' : 'City *',
+                      border: const OutlineInputBorder(),
+                      errorText: _cityError,
                     ),
                     items: [
-                      const DropdownMenuItem<int>(
-                        value: null,
-                        child: Text('No city selected'),
-                      ),
+                      if (_isEditing)
+                        const DropdownMenuItem<int>(
+                          value: null,
+                          child: Text('No city selected'),
+                        ),
                       ..._cities.map((city) => DropdownMenuItem(
                             value: city.id,
                             child: Text('${city.name}, ${city.country}'),
                           )),
                     ],
                     onChanged: (value) {
-                      setState(() => _selectedCityId = value);
+                      setState(() {
+                        _selectedCityId = value;
+                        _cityError = null;
+                      });
                     },
                   ),
+                  if (!_isEditing) ...[
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<int>(
+                      value: _selectedRoleId,
+                      decoration: InputDecoration(
+                        labelText: 'Role *',
+                        border: const OutlineInputBorder(),
+                        errorText: _roleError,
+                      ),
+                      items: _roles.map((role) => DropdownMenuItem(
+                            value: role['id'] as int,
+                            child: Text(role['name'] as String),
+                          )).toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedRoleId = value;
+                          _roleError = null;
+                        });
+                      },
+                    ),
+                  ],
                   const SizedBox(height: 24),
                   SizedBox(
                     height: 48,

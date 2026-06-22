@@ -74,7 +74,7 @@ namespace Spotter.Services
 
             if (!_currentUserService.IsAdmin() && targetUserId != _currentUserService.GetUserId())
             {
-                throw new ClientException("Access denied.");
+                throw new ForbiddenException("Access denied.");
             }
 
             var balance = await _dbContext.SpotterPoints

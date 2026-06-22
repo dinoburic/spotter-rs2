@@ -261,7 +261,7 @@ namespace Spotter.Services
             }
 
             if (!_currentUserService.IsAdmin() && entity.OrganizerId != _currentUserService.GetUserId())
-                throw new ClientException("Access denied.");
+                throw new ForbiddenException("Access denied.");
 
             var hasTicketTypes = await _dbContext.TicketTypes.AnyAsync(tt => tt.EventId == id);
             if (!hasTicketTypes)
@@ -330,7 +330,7 @@ namespace Spotter.Services
             }
 
             if (!_currentUserService.IsAdmin() && entity.OrganizerId != _currentUserService.GetUserId())
-                throw new ClientException("Access denied.");
+                throw new ForbiddenException("Access denied.");
 
             _eventStateMachine.Transition(entity, EventStatus.Cancelled);
             await _dbContext.SaveChangesAsync();
@@ -360,6 +360,59 @@ namespace Spotter.Services
 
             _logger.LogInformation("Event {EventId} completed successfully", id);
             return _mapper.Map<EventResponse>(entity);
+        }
+
+        public async Task<List<UserResponse>> GetFriendsAttendingAsync(int eventId)
+        {
+            var userId = _currentUserService.GetUserId();
+
+            var friendIds = await _dbContext.Friendships
+                .Where(f => (f.RequesterId == userId || f.AddresseeId == userId)
+                            && f.Status == FriendshipStatus.Accepted)
+                .Select(f => f.RequesterId == userId ? f.AddresseeId : f.RequesterId)
+                .ToListAsync();
+
+            var friendsAttending = await _dbContext.Orders
+                .Include(o => o.User).ThenInclude(u => u.City)
+                .Where(o => o.EventId == eventId &&
+                            o.Status == OrderStatus.Paid &&
+                            friendIds.Contains(o.UserId))
+                .Select(o => o.User!)
+                .Distinct()
+                .ToListAsync();
+
+            return friendsAttending.Select(u => _mapper.Map<UserResponse>(u)).ToList();
+        }
+
+        public async Task<string> UploadCoverImageAsync(int eventId, Microsoft.AspNetCore.Http.IFormFile file, string webRootPath)
+        {
+            _logger.LogInformation("Uploading cover image for event {EventId}", eventId);
+
+            var entity = await _dbContext.Events.FirstOrDefaultAsync(e => e.Id == eventId);
+            if (entity == null)
+                throw new NotFoundException("Event not found.");
+
+            if (!_currentUserService.IsAdmin() && entity.OrganizerId != _currentUserService.GetUserId())
+                throw new ForbiddenException("Access denied.");
+
+            var uploadsPath = Path.Combine(webRootPath, "uploads", "events");
+            Directory.CreateDirectory(uploadsPath);
+
+            var extension = Path.GetExtension(file.FileName);
+            var fileName = $"{eventId}_{Guid.NewGuid()}{extension}";
+            var filePath = Path.Combine(uploadsPath, fileName);
+
+            await using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            var url = $"/uploads/events/{fileName}";
+            entity.CoverImageUrl = url;
+            await _dbContext.SaveChangesAsync();
+
+            _logger.LogInformation("Cover image uploaded for event {EventId}: {Url}", eventId, url);
+            return url;
         }
     }
 }

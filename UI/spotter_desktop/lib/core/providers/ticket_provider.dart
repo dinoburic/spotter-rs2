@@ -70,13 +70,20 @@ class TicketProvider extends ChangeNotifier {
     );
   }
 
-  Future<void> useTicket(String qrCodePayload) async {
-    await _baseProvider.post<void>(
-      '${ApiConstants.tickets}/use',
-      token: _token,
-      data: {'qrCodePayload': qrCodePayload},
-      fromJson: (_) {},
-    );
+  Future<TicketResponse?> useTicket(String qrCodePayload) async {
+    try {
+      final result = await _baseProvider.post<TicketResponse>(
+        '${ApiConstants.tickets}/use',
+        token: _token,
+        data: {'qrCodePayload': qrCodePayload},
+        fromJson: (json) => TicketResponse.fromJson(json),
+      );
+      return result;
+    } catch (e) {
+      error = e.toString().replaceAll('Exception: ', '');
+      notifyListeners();
+      return null;
+    }
   }
 
   Future<List<TicketResponse>> getUsedTicketsForEvent(int eventId) async {

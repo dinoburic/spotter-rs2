@@ -123,6 +123,38 @@ class BaseProvider {
   }
 
   Exception _handleError(DioException e) {
+    if (e.response?.data != null) {
+      final data = e.response!.data;
+      if (data is Map<String, dynamic>) {
+        if (data.containsKey('error')) {
+          return Exception(data['error']);
+        }
+        if (data.containsKey('errors')) {
+          final errors = data['errors'];
+          if (errors is Map<String, dynamic>) {
+            final messages = errors.entries
+                .map((entry) {
+                  final value = entry.value;
+                  if (value is List) {
+                    return value.join(', ');
+                  }
+                  return value.toString();
+                })
+                .join('; ');
+            return Exception(messages);
+          }
+        }
+        if (data.containsKey('message')) {
+          return Exception(data['message']);
+        }
+        if (data.containsKey('title')) {
+          return Exception(data['title']);
+        }
+      }
+      if (data is String && data.isNotEmpty) {
+        return Exception(data);
+      }
+    }
     if (e.response?.statusCode == 401) {
       return Exception('Unauthorized - Please login again');
     }
@@ -132,28 +164,7 @@ class BaseProvider {
     if (e.response?.statusCode == 404) {
       return Exception('Resource not found');
     }
-    if (e.response?.data != null) {
-      final data = e.response!.data;
-      if (data is Map<String, dynamic>) {
-        if (data.containsKey('errors')) {
-          final errors = data['errors'] as Map<String, dynamic>;
-          final messages = errors.entries
-              .map((e) => '${e.key}: ${(e.value as List).join(', ')}')
-              .join('\n');
-          return Exception(messages);
-        }
-        if (data.containsKey('message')) {
-          return Exception(data['message']);
-        }
-        if (data.containsKey('title')) {
-          return Exception(data['title']);
-        }
-      }
-      if (data is String) {
-        return Exception(data);
-      }
-    }
-    return Exception(e.message ?? 'An unexpected error occurred');
+    return Exception(e.message ?? 'Request failed (${e.response?.statusCode ?? "unknown"})');
   }
 }
 

@@ -112,6 +112,7 @@ namespace Spotter.Services
                 .Include(e => e.TicketTypes)
                 .Where(e => e.Status == EventStatus.Active &&
                             !e.IsDeleted &&
+                            e.StartsAt > DateTime.UtcNow &&
                             !attendedEventIds.Contains(e.Id))
                 .ToListAsync();
 
@@ -133,7 +134,7 @@ namespace Spotter.Services
 
             if (_model != null)
             {
-                var results = GetMLBasedRecommendations(user, activeEvents, attendedEventIds, userInterests);
+                var results = await GetMLBasedRecommendationsAsync(user, activeEvents, attendedEventIds, userInterests);
                 _logger.LogInformation("Generated {Count} ML-based recommendations", results.Count);
                 return results;
             }
@@ -143,7 +144,7 @@ namespace Spotter.Services
             return interestResults;
         }
 
-        private List<RecommendationResponse> GetMLBasedRecommendations(
+        private async Task<List<RecommendationResponse>> GetMLBasedRecommendationsAsync(
             User user,
             List<Event> activeEvents,
             List<int> attendedEventIds,
@@ -151,7 +152,7 @@ namespace Spotter.Services
         {
             var predictionEngine = _mlContext.Model.CreatePredictionEngine<EventFeatures, EventPrediction>(_model!);
 
-            var userProfile = BuildUserProfile(user, attendedEventIds);
+            var userProfile = await BuildUserProfileAsync(user.Id, attendedEventIds);
             var results = new List<RecommendationResponse>();
 
             foreach (var evt in activeEvents)
@@ -312,6 +313,25 @@ namespace Spotter.Services
             }
 
             return string.Join(" ", parts.Where(p => !string.IsNullOrEmpty(p)));
+        }
+
+        private async Task<string> BuildUserProfileAsync(int userId, List<int> attendedEventIds)
+        {
+            var interests = await _dbContext.UserInterests
+                .Include(ui => ui.Category)
+                .Where(ui => ui.UserId == userId)
+                .Select(ui => ui.Category.Name)
+                .ToListAsync();
+
+            var purchasedCategories = await _dbContext.Orders
+                .Include(o => o.Event).ThenInclude(e => e.Category)
+                .Where(o => o.UserId == userId && o.Status == OrderStatus.Paid && attendedEventIds.Contains(o.EventId))
+                .Select(o => o.Event.Category.Name)
+                .Distinct()
+                .ToListAsync();
+
+            var allCategories = interests.Concat(purchasedCategories).Distinct();
+            return string.Join(" ", allCategories);
         }
 
         private EventFeatures BuildEventFeatures(Event evt, string userProfile)

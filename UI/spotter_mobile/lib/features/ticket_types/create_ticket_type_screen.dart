@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/providers/event_provider.dart';
+import '../../core/models/event_response.dart';
 
 class CreateTicketTypeScreen extends StatefulWidget {
   final int eventId;
@@ -21,6 +22,19 @@ class _CreateTicketTypeScreenState extends State<CreateTicketTypeScreen> {
   int _selectedType = 0;
   bool _isSubmitting = false;
   int _addedCount = 0;
+  EventResponse? _event;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadEvent();
+  }
+
+  Future<void> _loadEvent() async {
+    final eventProvider = context.read<EventProvider>();
+    _event = await eventProvider.getEventById(widget.eventId);
+    if (mounted) setState(() {});
+  }
 
   @override
   void dispose() {
@@ -38,6 +52,28 @@ class _CreateTicketTypeScreenState extends State<CreateTicketTypeScreen> {
     setState(() {
       _selectedType = 0;
     });
+  }
+
+  Future<void> _checkCapacityWarning() async {
+    if (_event == null) return;
+
+    final eventProvider = context.read<EventProvider>();
+    await eventProvider.loadTicketTypes(widget.eventId);
+    final ticketTypes = eventProvider.ticketTypes;
+
+    final sumQuantities = ticketTypes.fold<int>(0, (sum, tt) => sum + tt.totalQuantity);
+    final remaining = _event!.totalCapacity - sumQuantities;
+
+    if (!mounted) return;
+
+    if (remaining <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Event capacity is now full. No more ticket types can be added.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
   }
 
   Future<void> _submit() async {
@@ -69,6 +105,8 @@ class _CreateTicketTypeScreenState extends State<CreateTicketTypeScreen> {
         ),
       );
       _clearForm();
+      await _loadEvent();
+      await _checkCapacityWarning();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -252,7 +290,7 @@ class _CreateTicketTypeScreenState extends State<CreateTicketTypeScreen> {
                             valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
                         )
-                      : const Text('Add Ticket Type',style: TextStyle(fontSize: 8),),
+                      : const Text('Add Ticket Type'),
                 ),
               ),
               const SizedBox(height: 12),

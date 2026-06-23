@@ -103,8 +103,7 @@ namespace Spotter.Services
                 allEventsDebug.Count,
                 string.Join(", ", allEventsDebug.Select(e => $"[{e.Id}:{e.Status}:{e.StartsAt:yyyy-MM-dd HH:mm}]")));
 
-            _logger.LogInformation("Debug: Current UTC time is {UtcNow}, local time is {LocalNow}",
-                DateTime.UtcNow, DateTime.Now);
+            _logger.LogInformation("Debug: Current UTC time is {UtcNow}", DateTime.UtcNow);
 
             var activeEvents = await _dbContext.Events
                 .Include(e => e.Category)

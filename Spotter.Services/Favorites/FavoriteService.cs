@@ -1,6 +1,7 @@
 using MapsterMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Spotter.Model.Enums;
 using Spotter.Model.Exceptions;
 using Spotter.Model.Responses;
 using Spotter.Model.SearchObjects;
@@ -76,6 +77,9 @@ namespace Spotter.Services
                 _logger.LogWarning("Event {EventId} not found", eventId);
                 throw new NotFoundException("Event not found.");
             }
+
+            if (eventEntity.Status != EventStatus.Active)
+                throw new ClientException("You can only favourite active events.");
 
             var exists = await _dbContext.Favorites.AnyAsync(f => f.UserId == userId && f.EventId == eventId);
             if (exists)

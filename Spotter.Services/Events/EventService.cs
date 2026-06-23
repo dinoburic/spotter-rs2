@@ -208,6 +208,19 @@ namespace Spotter.Services
             if (!venueExists)
                 throw new NotFoundException("Venue not found.");
 
+            var existingTicketTypeTotal = await _dbContext.TicketTypes
+                .Where(tt => tt.EventId == id)
+                .SumAsync(tt => tt.TotalQuantity);
+
+            if (request.TotalCapacity < existingTicketTypeTotal)
+                throw new ClientException(
+                    $"Cannot reduce event capacity to {request.TotalCapacity}. " +
+                    $"Existing ticket types total {existingTicketTypeTotal} tickets. " +
+                    $"Reduce ticket type quantities first.");
+
+            if (entity.Status == EventStatus.Active && request.StartsAt < DateTime.UtcNow)
+                throw new ClientException("Cannot set event start date in the past for an active event.");
+
             _mapper.Map(request, entity);
             await _dbContext.SaveChangesAsync();
 
@@ -266,6 +279,9 @@ namespace Spotter.Services
             var hasTicketTypes = await _dbContext.TicketTypes.AnyAsync(tt => tt.EventId == id);
             if (!hasTicketTypes)
                 throw new ClientException("Event must have at least one ticket type before activation.");
+
+            if (entity.EndsAt < DateTime.UtcNow)
+                throw new ClientException("Cannot activate an event that has already ended.");
 
             var wasAlreadyActive = entity.Status == EventStatus.Active;
 

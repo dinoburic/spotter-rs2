@@ -85,8 +85,12 @@ TypeAdapterConfig<Ticket, TicketResponse>.NewConfig()
     .Map(dest => dest.UserFullName, src => src.User != null ? src.User.FirstName + " " + src.User.LastName : string.Empty)
     .Map(dest => dest.EventId, src => src.OrderItem != null && src.OrderItem.Order != null ? src.OrderItem.Order.EventId : 0)
     .Map(dest => dest.EventTitle, src => src.OrderItem != null && src.OrderItem.Order != null && src.OrderItem.Order.Event != null ? src.OrderItem.Order.Event.Title : string.Empty)
+    .Map(dest => dest.EventStartsAt, src => src.OrderItem != null && src.OrderItem.Order != null && src.OrderItem.Order.Event != null ? src.OrderItem.Order.Event.StartsAt : (DateTime?)null)
+    .Map(dest => dest.VenueName, src => src.OrderItem != null && src.OrderItem.Order != null && src.OrderItem.Order.Event != null && src.OrderItem.Order.Event.Venue != null ? src.OrderItem.Order.Event.Venue.Name : string.Empty)
+    .Map(dest => dest.CityName, src => src.OrderItem != null && src.OrderItem.Order != null && src.OrderItem.Order.Event != null && src.OrderItem.Order.Event.Venue != null && src.OrderItem.Order.Event.Venue.City != null ? src.OrderItem.Order.Event.Venue.City.Name : string.Empty)
     .Map(dest => dest.TicketTypeName, src => src.OrderItem != null && src.OrderItem.TicketType != null ? src.OrderItem.TicketType.Name : string.Empty)
     .Map(dest => dest.TypeName, src => src.OrderItem != null && src.OrderItem.TicketType != null ? src.OrderItem.TicketType.TypeEnum.ToString() : string.Empty)
+    .Map(dest => dest.Price, src => src.OrderItem != null ? src.OrderItem.UnitPrice : 0)
     .Map(dest => dest.StatusName, src => src.Status.ToString());
 
 TypeAdapterConfig<Review, ReviewResponse>.NewConfig()

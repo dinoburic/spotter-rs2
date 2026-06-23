@@ -93,7 +93,7 @@ namespace Spotter.Services.Database
             modelBuilder.Entity<Event>(entity =>
             {
                 entity.Property(e => e.Title).IsRequired().HasMaxLength(200);
-                entity.Property(e => e.Description).IsRequired().HasMaxLength(2000);
+                entity.Property(e => e.Description).HasMaxLength(2000);
                 entity.Property(e => e.CoverImageUrl).HasMaxLength(500);
                 entity.Property(e => e.Status).HasDefaultValue(EventStatus.Draft);
                 entity.Property(e => e.IsDeleted).HasDefaultValue(false);

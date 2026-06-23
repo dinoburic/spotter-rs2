@@ -50,5 +50,10 @@ namespace Spotter.Services
         {
             return _httpContextAccessor.HttpContext?.User.IsInRole(role) ?? false;
         }
+
+        public string? GetJti()
+        {
+            return _httpContextAccessor.HttpContext?.User.FindFirst("jti")?.Value;
+        }
     }
 }

@@ -211,7 +211,11 @@ class BaseProvider {
       if (response.statusCode == 200) {
         final data = response.data;
         final newToken = data['accessToken'] as String;
+        final newRefreshToken = data['refreshToken'] as String? ?? '';
         await prefs.setString('accessToken', newToken);
+        if (newRefreshToken.isNotEmpty) {
+          await prefs.setString('refreshToken', newRefreshToken);
+        }
         _token = newToken;
         _isRefreshing = false;
         return await retryRequest();

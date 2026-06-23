@@ -88,7 +88,7 @@ FastTree is a gradient-boosted decision tree implementation from ML.NET. It is w
 The classifier is trained on a binary label:
 
 - **Label = 1 (positive):** The user actually purchased a ticket for this event (extracted from paid orders in the database).
-- **Label = 0 (negative):** Randomly sampled events the user did NOT purchase, used as negative examples to give the model contrast.
+- **Label = 0 (negative):** Real events the user did NOT purchase, sampled at a 3:1 ratio to positive samples. Each negative sample uses the same user profile as the positive samples, paired with an event the user has not attended, providing realistic contrast for the model to learn from.
 
 ### 4.4. Training Pipeline
 
@@ -109,7 +109,7 @@ During training, the service:
 
 - Loads all paid orders from the database, joining each order with its event, category, user, and the user's selected interests.
 - Builds a positive training example for each (user, purchased event) pair using the user's profile (interests + categories from purchase history).
-- Generates negative examples from random events the user did NOT interact with, using a synthetic profile to provide contrast.
+- Generates negative examples from real events the user did NOT purchase, using the same user profile (at a 3:1 ratio to positives) to provide realistic contrast.
 - Trains the FastTree classifier on the combined dataset (requires minimum 5 samples).
 - Replaces the previously held in-memory model with the newly trained one.
 

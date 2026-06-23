@@ -135,6 +135,9 @@ namespace Spotter.Services
                 if (eventEntity.Status != EventStatus.Active)
                     throw new ClientException("Reservations can only be made for active events.");
 
+                if (eventEntity.StartsAt < DateTime.UtcNow)
+                    throw new ClientException("This event has already started. Reservations are no longer available.");
+
                 var hasDuplicate = await _dbContext.Reservations.AnyAsync(r =>
                     r.UserId == userId &&
                     r.TicketTypeId == request.TicketTypeId &&

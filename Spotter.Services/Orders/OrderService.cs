@@ -12,6 +12,8 @@ using Spotter.Services.StateMachines;
 using System.Text;
 using System.Data;
 using Spotter.Model.Messages;
+using Microsoft.Extensions.Configuration;
+using Stripe;
 
 namespace Spotter.Services
 {
@@ -29,6 +31,7 @@ namespace Spotter.Services
         private readonly IWaitlistService _waitlistService;
         private readonly IStripeService _stripeService;
         private readonly IRabbitMqPublisher _rabbitMqPublisher;
+        private readonly IConfiguration _configuration;
         private readonly ILogger<OrderService> _logger;
 
         public OrderService(
@@ -44,6 +47,7 @@ namespace Spotter.Services
             IWaitlistService waitlistService,
             IStripeService stripeService,
             IRabbitMqPublisher rabbitMqPublisher,
+            IConfiguration configuration,
             ILogger<OrderService> logger)
         {
             _dbContext = dbContext;
@@ -58,6 +62,7 @@ namespace Spotter.Services
             _badgeService = badgeService;
             _waitlistService = waitlistService;
             _stripeService = stripeService;
+            _configuration = configuration;
             _logger = logger;
         }
 
@@ -146,6 +151,9 @@ namespace Spotter.Services
 
                 if (eventEntity.Status != EventStatus.Active)
                     throw new ClientException("Only active events accept orders.");
+
+                if (eventEntity.StartsAt < DateTime.UtcNow)
+                    throw new ClientException("This event has already started or ended. Tickets are no longer available.");
 
                 var ticketTypesDict = new Dictionary<int, TicketType>();
                 foreach (var item in request.Items)
@@ -516,6 +524,11 @@ namespace Spotter.Services
 
             if (order.Status == OrderStatus.Pending)
             {
+                if (!string.IsNullOrEmpty(order.StripePaymentIntentId))
+                {
+                    await CancelStripePaymentIntentAsync(order.StripePaymentIntentId, order.Id);
+                }
+
                 foreach (var item in order.OrderItems)
                 {
                     var ticketType = await _dbContext.TicketTypes.FindAsync(item.TicketTypeId);
@@ -566,6 +579,11 @@ namespace Spotter.Services
 
             if (order.Status == OrderStatus.Pending)
             {
+                if (!string.IsNullOrEmpty(order.StripePaymentIntentId))
+                {
+                    await CancelStripePaymentIntentAsync(order.StripePaymentIntentId, order.Id);
+                }
+
                 foreach (var item in order.OrderItems)
                 {
                     var ticketType = await _dbContext.TicketTypes.FindAsync(item.TicketTypeId);
@@ -598,6 +616,25 @@ namespace Spotter.Services
         {
             var raw = $"SPOTTER-{orderId}-{orderItemId}-{ticketTypeId}-{Guid.NewGuid():N}";
             return Convert.ToBase64String(Encoding.UTF8.GetBytes(raw));
+        }
+
+        private async Task CancelStripePaymentIntentAsync(string paymentIntentId, int orderId)
+        {
+            try
+            {
+                StripeConfiguration.ApiKey = _configuration["Stripe__SecretKey"] ?? _configuration["Stripe:SecretKey"];
+                var service = new PaymentIntentService();
+                var intent = await service.GetAsync(paymentIntentId);
+                if (intent.Status != "succeeded" && intent.Status != "canceled")
+                {
+                    await service.CancelAsync(paymentIntentId);
+                    _logger.LogInformation("Cancelled Stripe PaymentIntent {IntentId} for order {OrderId}", paymentIntentId, orderId);
+                }
+            }
+            catch (StripeException ex)
+            {
+                _logger.LogWarning(ex, "Could not cancel Stripe PaymentIntent for order {OrderId}", orderId);
+            }
         }
     }
 }

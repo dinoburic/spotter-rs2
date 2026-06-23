@@ -171,7 +171,7 @@ namespace Spotter.Services
                 return null;
 
             var response = _mapper.Map<UserSensitiveResponse>(user);
-            response.Role = user.UserRoles.FirstOrDefault()?.Role.Name;
+            response.Role = user.UserRoles?.FirstOrDefault()?.Role?.Name ?? Model.Static.Roles.User;
             return response;
         }
 

@@ -155,6 +155,23 @@ Future<void> loadTicketTypes(int eventId) async {
     );
   }
 
+  Future<String?> uploadCoverImage(int eventId, String filePath) async {
+    try {
+      final result = await _baseProvider.uploadFile<Map<String, dynamic>>(
+        '${ApiConstants.events}/$eventId/cover-image',
+        filePath,
+        'file',
+        token: _token,
+        fromJson: (json) => json as Map<String, dynamic>,
+      );
+      return result['url'] as String?;
+    } catch (e) {
+      error = e.toString();
+      notifyListeners();
+      return null;
+    }
+  }
+
   void setPage(int page) {
     currentPage = page;
   }

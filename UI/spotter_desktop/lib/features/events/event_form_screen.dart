@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:file_picker/file_picker.dart';
 import '../../core/providers/event_provider.dart';
 import '../../core/providers/category_provider.dart';
 import '../../core/providers/venue_provider.dart';
@@ -10,6 +12,7 @@ import '../../core/models/event_response.dart';
 import '../../core/models/category_response.dart';
 import '../../core/models/venue_response.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/api_constants.dart';
 import '../../widgets/loading_indicator.dart';
 import '../../widgets/confirm_dialog.dart';
 import '../ticket_types/ticket_type_form_screen.dart';
@@ -27,7 +30,6 @@ class _EventFormScreenState extends State<EventFormScreen> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _capacityController = TextEditingController();
-  final _coverUrlController = TextEditingController();
 
   List<CategoryResponse> _categories = [];
   List<VenueResponse> _venues = [];
@@ -36,6 +38,8 @@ class _EventFormScreenState extends State<EventFormScreen> {
   DateTime? _startsAt;
   DateTime? _endsAt;
   EventResponse? _existingEvent;
+  File? _selectedImageFile;
+  String? _existingImageUrl;
 
   bool _isLoading = false;
   bool _isInitLoading = true;
@@ -60,7 +64,6 @@ class _EventFormScreenState extends State<EventFormScreen> {
     _titleController.dispose();
     _descriptionController.dispose();
     _capacityController.dispose();
-    _coverUrlController.dispose();
     super.dispose();
   }
 
@@ -75,7 +78,7 @@ class _EventFormScreenState extends State<EventFormScreen> {
         _titleController.text = _existingEvent!.title;
         _descriptionController.text = _existingEvent!.description ?? '';
         _capacityController.text = _existingEvent!.totalCapacity.toString();
-        _coverUrlController.text = _existingEvent!.coverImageUrl ?? '';
+        _existingImageUrl = _existingEvent!.coverImageUrl;
         _selectedCategoryId = _existingEvent!.categoryId;
         _selectedVenueId = _existingEvent!.venueId;
         _startsAt = _existingEvent!.startsAt;
@@ -178,6 +181,29 @@ class _EventFormScreenState extends State<EventFormScreen> {
     });
   }
 
+  Future<void> _pickImage() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+    );
+
+    if (result != null && result.files.single.path != null) {
+      setState(() {
+        _selectedImageFile = File(result.files.single.path!);
+      });
+    }
+  }
+
+  Future<void> _uploadCoverImage(int eventId) async {
+    if (_selectedImageFile == null) return;
+
+    try {
+      final provider = context.read<EventProvider>();
+      await provider.uploadCoverImage(eventId, _selectedImageFile!.path);
+    } catch (_) {
+    }
+  }
+
   Future<void> _submit() async {
     if (!_validate()) return;
 
@@ -197,11 +223,13 @@ class _EventFormScreenState extends State<EventFormScreen> {
           startsAt: _startsAt!,
           endsAt: _endsAt!,
           totalCapacity: int.parse(_capacityController.text),
-          coverImageUrl: _coverUrlController.text.isEmpty
-              ? null
-              : _coverUrlController.text,
+          coverImageUrl: _existingImageUrl,
         );
         await provider.update(widget.eventId!, request);
+
+        if (_selectedImageFile != null) {
+          await _uploadCoverImage(widget.eventId!);
+        }
       } else {
         final request = EventInsertRequest(
           title: _titleController.text,
@@ -213,11 +241,13 @@ class _EventFormScreenState extends State<EventFormScreen> {
           startsAt: _startsAt!,
           endsAt: _endsAt!,
           totalCapacity: int.parse(_capacityController.text),
-          coverImageUrl: _coverUrlController.text.isEmpty
-              ? null
-              : _coverUrlController.text,
+          coverImageUrl: null,
         );
         final createdEvent = await provider.insert(request);
+
+        if (_selectedImageFile != null) {
+          await _uploadCoverImage(createdEvent.id);
+        }
 
         if (mounted) {
           final addTicketTypes = await showDialog<bool>(
@@ -331,6 +361,71 @@ class _EventFormScreenState extends State<EventFormScreen> {
       default:
         return Colors.grey;
     }
+  }
+
+  Widget _buildImageSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Cover Image', style: TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        if (_existingImageUrl != null && _selectedImageFile == null)
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.network(
+              '${ApiConstants.baseUrl}$_existingImageUrl',
+              height: 150,
+              width: double.infinity,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) => Container(
+                height: 150,
+                color: Colors.grey[200],
+                child: const Center(
+                  child: Icon(Icons.broken_image, size: 48, color: Colors.grey),
+                ),
+              ),
+            ),
+          ),
+        if (_selectedImageFile != null)
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.file(
+              _selectedImageFile!,
+              height: 150,
+              width: double.infinity,
+              fit: BoxFit.cover,
+            ),
+          ),
+        if (_existingImageUrl == null && _selectedImageFile == null)
+          Container(
+            height: 150,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey[300]!),
+            ),
+            child: const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.image, size: 48, color: Colors.grey),
+                  SizedBox(height: 8),
+                  Text('No image selected', style: TextStyle(color: Colors.grey)),
+                ],
+              ),
+            ),
+          ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          icon: const Icon(Icons.upload_file),
+          label: Text(_selectedImageFile != null
+              ? 'Change Image'
+              : (_existingImageUrl != null ? 'Replace Image' : 'Select Image')),
+          onPressed: _pickImage,
+        ),
+      ],
+    );
   }
 
   @override
@@ -504,31 +599,7 @@ class _EventFormScreenState extends State<EventFormScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  TextField(
-                    controller: _coverUrlController,
-                    decoration: const InputDecoration(
-                      labelText: 'Cover Image URL (optional)',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  if (_coverUrlController.text.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.network(
-                        _coverUrlController.text,
-                        height: 150,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                          height: 150,
-                          color: Colors.grey[200],
-                          child: const Center(
-                            child: Text('Invalid image URL'),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                  _buildImageSection(),
                   const SizedBox(height: 24),
                   SizedBox(
                     height: 48,

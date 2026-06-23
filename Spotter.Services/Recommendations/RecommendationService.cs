@@ -82,7 +82,7 @@ namespace Spotter.Services
                 return new List<RecommendationResponse>();
             }
 
-            _logger.LogInformation("User {UserId} has {InterestCount} interests, CityId={CityId}",
+            _logger.LogDebug("User {UserId} has {InterestCount} interests, CityId={CityId}",
                 userId, user.UserInterests?.Count ?? 0, user.CityId);
 
             var attendedEventIds = await _dbContext.Orders
@@ -91,19 +91,7 @@ namespace Spotter.Services
                 .Distinct()
                 .ToListAsync();
 
-            _logger.LogInformation("User {UserId} has {AttendedCount} attended events", userId, attendedEventIds.Count);
-
-            var allEventsDebug = await _dbContext.Events
-                .Where(e => !e.IsDeleted)
-                .Select(e => new { e.Id, e.Title, e.Status, e.StartsAt })
-                .Take(10)
-                .ToListAsync();
-
-            _logger.LogInformation("Debug: Found {Count} non-deleted events. Sample: {Events}",
-                allEventsDebug.Count,
-                string.Join(", ", allEventsDebug.Select(e => $"[{e.Id}:{e.Status}:{e.StartsAt:yyyy-MM-dd HH:mm}]")));
-
-            _logger.LogInformation("Debug: Current UTC time is {UtcNow}", DateTime.UtcNow);
+            _logger.LogDebug("User {UserId} has {AttendedCount} attended events", userId, attendedEventIds.Count);
 
             var activeEvents = await _dbContext.Events
                 .Include(e => e.Category)
@@ -115,7 +103,7 @@ namespace Spotter.Services
                             !attendedEventIds.Contains(e.Id))
                 .ToListAsync();
 
-            _logger.LogInformation("Found {EventCount} active events to score", activeEvents.Count);
+            _logger.LogDebug("Found {EventCount} active events to score", activeEvents.Count);
 
             if (!activeEvents.Any())
             {
@@ -254,64 +242,63 @@ namespace Spotter.Services
         {
             var trainingData = new List<EventFeatures>();
 
-            var paidOrders = await _dbContext.Orders
-                .Include(o => o.Event).ThenInclude(e => e!.Category)
-                .Include(o => o.User).ThenInclude(u => u!.UserInterests).ThenInclude(ui => ui.Category)
-                .Where(o => o.Status == OrderStatus.Paid && o.Event != null && o.User != null)
+            var usersWithOrders = await _dbContext.Orders
+                .Where(o => o.Status == OrderStatus.Paid)
+                .Select(o => o.UserId)
+                .Distinct()
                 .ToListAsync();
 
-            _logger.LogInformation("Found {Count} paid orders for training", paidOrders.Count);
-
-            foreach (var order in paidOrders)
-            {
-                if (order.Event == null || order.User == null) continue;
-
-                var userProfile = BuildUserProfile(order.User, new List<int>());
-                var eventFeatures = BuildEventFeatures(order.Event, userProfile);
-                eventFeatures.Label = true;
-                trainingData.Add(eventFeatures);
-            }
-
-            var allEvents = await _dbContext.Events
+            var allActiveEvents = await _dbContext.Events
                 .Include(e => e.Category)
+                .Include(e => e.Venue)
                 .Where(e => !e.IsDeleted)
-                .Take(100)
                 .ToListAsync();
 
-            _logger.LogInformation("Found {Count} events for negative samples", allEvents.Count);
+            _logger.LogInformation("Building training data from {UserCount} users with orders, {EventCount} events",
+                usersWithOrders.Count, allActiveEvents.Count);
 
-            var random = new Random(42);
-            var negativeCount = Math.Max(trainingData.Count, 10);
-
-            foreach (var evt in allEvents.Take(negativeCount))
+            foreach (var userId in usersWithOrders)
             {
-                var fakeProfile = $"category{random.Next(1, 7)} interest{random.Next(1, 7)}";
-                trainingData.Add(new EventFeatures
+                var attendedEventIds = await _dbContext.Orders
+                    .Where(o => o.UserId == userId && o.Status == OrderStatus.Paid)
+                    .Select(o => o.EventId)
+                    .Distinct()
+                    .ToListAsync();
+
+                var userProfile = await BuildUserProfileAsync(userId, attendedEventIds);
+
+                foreach (var evt in allActiveEvents.Where(e => attendedEventIds.Contains(e.Id)))
                 {
-                    Label = false,
-                    Features = $"{fakeProfile} {evt.Category?.Name ?? string.Empty} {evt.Title}"
-                });
+                    var eventFeatures = BuildEventFeatures(evt, userProfile);
+                    eventFeatures.Label = true;
+                    trainingData.Add(eventFeatures);
+                }
+
+                var negatives = BuildNegativeSamples(userId, attendedEventIds, allActiveEvents, userProfile);
+                trainingData.AddRange(negatives);
             }
 
+            _logger.LogInformation("Built {Count} training samples", trainingData.Count);
             return trainingData;
         }
 
-        private string BuildUserProfile(User? user, List<int> attendedEventIds)
+        private List<EventFeatures> BuildNegativeSamples(
+            int userId,
+            List<int> attendedEventIds,
+            List<Event> allEvents,
+            string userProfile)
         {
-            if (user == null) return string.Empty;
+            var negativeEvents = allEvents
+                .Where(e => !attendedEventIds.Contains(e.Id))
+                .Take(attendedEventIds.Count * 3)
+                .ToList();
 
-            var parts = new List<string>();
-
-            if (user.UserInterests != null)
+            return negativeEvents.Select(e =>
             {
-                foreach (var interest in user.UserInterests)
-                {
-                    if (interest.Category?.Name != null)
-                        parts.Add(interest.Category.Name);
-                }
-            }
-
-            return string.Join(" ", parts.Where(p => !string.IsNullOrEmpty(p)));
+                var features = BuildEventFeatures(e, userProfile);
+                features.Label = false;
+                return features;
+            }).ToList();
         }
 
         private async Task<string> BuildUserProfileAsync(int userId, List<int> attendedEventIds)

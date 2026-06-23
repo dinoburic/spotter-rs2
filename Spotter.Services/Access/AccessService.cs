@@ -20,6 +20,7 @@ namespace Spotter.Services
         private readonly IRefreshTokenService _refreshTokenService;
         private readonly ICryptoService _cryptoService;
         private readonly IConfiguration _configuration;
+        private readonly ICurrentUserService _currentUserService;
         private readonly IValidator<UserLoginRequest> _loginValidator;
         private readonly IValidator<RegisterRequest> _registerValidator;
 
@@ -29,6 +30,7 @@ namespace Spotter.Services
             IRefreshTokenService refreshTokenService,
             ICryptoService cryptoService,
             IConfiguration configuration,
+            ICurrentUserService currentUserService,
             IValidator<UserLoginRequest> loginValidator,
             IValidator<RegisterRequest> registerValidator)
         {
@@ -37,6 +39,7 @@ namespace Spotter.Services
             _refreshTokenService = refreshTokenService;
             _cryptoService = cryptoService;
             _configuration = configuration;
+            _currentUserService = currentUserService;
             _loginValidator = loginValidator;
             _registerValidator = registerValidator;
         }
@@ -113,8 +116,21 @@ namespace Spotter.Services
             if (storedToken != null)
             {
                 _dbContext.RefreshTokens.Remove(storedToken);
-                await _dbContext.SaveChangesAsync();
             }
+
+            var jti = _currentUserService.GetJti();
+            if (!string.IsNullOrEmpty(jti))
+            {
+                _dbContext.InvalidatedTokens.Add(new InvalidatedToken
+                {
+                    TokenJti = jti,
+                    InvalidatedAt = DateTime.UtcNow,
+                    ExpiresAt = DateTime.UtcNow.AddMinutes(60),
+                    UserId = userId
+                });
+            }
+
+            await _dbContext.SaveChangesAsync();
         }
 
         public async Task<UserLoginResponse> RegisterAsync(RegisterRequest request)

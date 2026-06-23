@@ -37,6 +37,11 @@ namespace Spotter.Services
 
         protected override IQueryable<TicketType> ApplyFilters(IQueryable<TicketType> query, TicketTypeSearch? search)
         {
+            if (!_currentUserService.IsAdmin())
+            {
+                query = query.Where(tt => tt.Event.Status == EventStatus.Active && !tt.Event.IsDeleted);
+            }
+
             if (search == null)
                 return query;
 

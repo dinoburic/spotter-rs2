@@ -41,8 +41,8 @@ namespace Spotter.Services
             var query = _dbContext.Tickets
                                     .Include(t => t.User)
                                     .Include(t => t.OrderItem).ThenInclude(oi => oi.TicketType)
-                                    .Include(t => t.OrderItem).ThenInclude(oi => oi.Order).ThenInclude(o => o.Event)
-                                    .Where(t => t.OrderItem.Order.Status == OrderStatus.Paid)  // DODAJ OVO
+                                    .Include(t => t.OrderItem).ThenInclude(oi => oi.Order).ThenInclude(o => o.Event).ThenInclude(e => e.Venue).ThenInclude(v => v.City)
+                                    .Where(t => t.OrderItem.Order.Status == OrderStatus.Paid)
                                     .AsQueryable();
 
             if (!_currentUserService.IsAdmin())
@@ -89,7 +89,7 @@ namespace Spotter.Services
             var ticket = await _dbContext.Tickets
                 .Include(t => t.User)
                 .Include(t => t.OrderItem).ThenInclude(oi => oi.TicketType)
-                .Include(t => t.OrderItem).ThenInclude(oi => oi.Order).ThenInclude(o => o.Event)
+                .Include(t => t.OrderItem).ThenInclude(oi => oi.Order).ThenInclude(o => o.Event).ThenInclude(e => e.Venue).ThenInclude(v => v.City)
                 .FirstOrDefaultAsync(t => t.Id == id);
 
             if (ticket == null)
@@ -108,7 +108,7 @@ namespace Spotter.Services
             var ticket = await _dbContext.Tickets
                 .Include(t => t.User)
                 .Include(t => t.OrderItem).ThenInclude(oi => oi.TicketType)
-                .Include(t => t.OrderItem).ThenInclude(oi => oi.Order).ThenInclude(o => o.Event)
+                .Include(t => t.OrderItem).ThenInclude(oi => oi.Order).ThenInclude(o => o.Event).ThenInclude(e => e.Venue).ThenInclude(v => v.City)
                 .FirstOrDefaultAsync(t => t.QrCodePayload == qrCodePayload);
 
             if (ticket == null)

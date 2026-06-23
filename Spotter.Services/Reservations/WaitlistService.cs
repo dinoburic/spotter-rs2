@@ -104,6 +104,11 @@ namespace Spotter.Services
                 throw new ClientException("Cannot join waitlist for inactive event.");
             }
 
+            if (eventEntity.StartsAt < DateTime.UtcNow)
+            {
+                throw new ClientException("This event has already started. Waitlist is closed.");
+            }
+
             var ticketType = await _dbContext.TicketTypes.FirstOrDefaultAsync(tt => tt.Id == request.TicketTypeId);
             if (ticketType == null)
             {

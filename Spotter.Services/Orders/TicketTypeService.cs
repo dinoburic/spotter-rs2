@@ -54,6 +54,23 @@ namespace Spotter.Services
             return query;
         }
 
+        public override async Task<TicketTypeResponse> GetByIdAsync(int id)
+        {
+            var query = _dbContext.TicketTypes
+                .Include(tt => tt.Event)
+                .AsQueryable();
+
+            if (!_currentUserService.IsAdmin())
+            {
+                query = query.Where(tt => tt.Event.Status == EventStatus.Active && !tt.Event.IsDeleted);
+            }
+
+            var entity = await query.FirstOrDefaultAsync(tt => tt.Id == id);
+            if (entity == null) throw new NotFoundException($"Ticket type {id} not found.");
+
+            return _mapper.Map<TicketTypeResponse>(entity);
+        }
+
         public override async Task<TicketTypeResponse> InsertAsync(TicketTypeInsertRequest request)
         {
             _logger.LogInformation("Creating ticket type {Name} for event {EventId}", request.Name, request.EventId);

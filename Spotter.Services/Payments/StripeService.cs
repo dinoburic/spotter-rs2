@@ -12,7 +12,6 @@ namespace Spotter.Services
     public class StripeService : IStripeService
     {
         private readonly SpotterDbContext _dbContext;
-        private readonly IOrderService _orderService;
         private readonly ICurrentUserService _currentUserService;
         private readonly IConfiguration _configuration;
         private readonly ILogger<StripeService> _logger;
@@ -20,13 +19,11 @@ namespace Spotter.Services
 
         public StripeService(
             SpotterDbContext dbContext,
-            IOrderService orderService,
             ICurrentUserService currentUserService,
             IConfiguration configuration,
             ILogger<StripeService> logger)
         {
             _dbContext = dbContext;
-            _orderService = orderService;
             _currentUserService = currentUserService;
             _configuration = configuration;
             _logger = logger;
@@ -123,88 +120,92 @@ namespace Spotter.Services
             };
         }
 
-        public async Task HandleWebhookAsync(string payload, string stripeSignature)
-{
-    _logger.LogInformation("Processing Stripe webhook");
-
-    Stripe.Event stripeEvent;
-    try
-    {
-        stripeEvent = EventUtility.ConstructEvent(
-            payload,
-            stripeSignature,
-            _webhookSecret,
-            throwOnApiVersionMismatch: false
-        );
-    }
-    catch (StripeException ex)
-    {
-        _logger.LogError(ex, "Failed to construct Stripe event");
-        throw;
-    }
-
-    var alreadyProcessed = await _dbContext.ProcessedStripeEvents
-        .AnyAsync(e => e.StripeEventId == stripeEvent.Id);
-    if (alreadyProcessed)
-    {
-        _logger.LogInformation("Stripe event {EventId} already processed, skipping", stripeEvent.Id);
-        return;
-    }
-
-    if (stripeEvent.Type == EventTypes.PaymentIntentSucceeded)
-    {
-        var paymentIntent = stripeEvent.Data.Object as PaymentIntent;
-        if (paymentIntent?.Metadata.TryGetValue("orderId", out var orderIdStr) == true &&
-            int.TryParse(orderIdStr, out var orderId))
+        public async Task<WebhookResult> HandleWebhookAsync(string payload, string stripeSignature)
         {
-            var order = await _dbContext.Orders.FirstOrDefaultAsync(o => o.Id == orderId);
-            if (order != null)
+            _logger.LogInformation("Processing Stripe webhook");
+
+            Stripe.Event stripeEvent;
+            try
             {
-                if (order.StripePaymentIntentId != paymentIntent.Id)
+                stripeEvent = EventUtility.ConstructEvent(
+                    payload,
+                    stripeSignature,
+                    _webhookSecret,
+                    throwOnApiVersionMismatch: false
+                );
+            }
+            catch (StripeException ex)
+            {
+                _logger.LogError(ex, "Failed to construct Stripe event");
+                throw;
+            }
+
+            var alreadyProcessed = await _dbContext.ProcessedStripeEvents
+                .AnyAsync(e => e.StripeEventId == stripeEvent.Id);
+            if (alreadyProcessed)
+            {
+                _logger.LogInformation("Stripe event {EventId} already processed, skipping", stripeEvent.Id);
+                return new WebhookResult { Action = WebhookAction.None };
+            }
+
+            var result = new WebhookResult { Action = WebhookAction.None };
+
+            if (stripeEvent.Type == EventTypes.PaymentIntentSucceeded)
+            {
+                var paymentIntent = stripeEvent.Data.Object as PaymentIntent;
+                if (paymentIntent?.Metadata.TryGetValue("orderId", out var orderIdStr) == true &&
+                    int.TryParse(orderIdStr, out var orderId))
                 {
-                    _logger.LogWarning("PaymentIntent {PaymentIntentId} does not match order {OrderId} current intent {CurrentIntentId}",
-                        paymentIntent.Id, orderId, order.StripePaymentIntentId);
-                }
-                else
-                {
-                    var expectedAmount = (long)(order.TotalAmount * 100);
-                    if (paymentIntent.Amount != expectedAmount || paymentIntent.Currency != "bam")
+                    var order = await _dbContext.Orders.FirstOrDefaultAsync(o => o.Id == orderId);
+                    if (order != null)
                     {
-                        _logger.LogWarning("PaymentIntent {PaymentIntentId} amount/currency mismatch. Expected {Expected} bam, got {Actual} {Currency}",
-                            paymentIntent.Id, expectedAmount, paymentIntent.Amount, paymentIntent.Currency);
-                    }
-                    else if (order.Status == OrderStatus.Pending)
-                    {
-                        await _orderService.MarkAsPaidAsync(orderId);
-                        _logger.LogInformation("Order {OrderId} marked as paid via Stripe webhook", orderId);
+                        if (order.StripePaymentIntentId != paymentIntent.Id)
+                        {
+                            _logger.LogWarning("PaymentIntent {PaymentIntentId} does not match order {OrderId} current intent {CurrentIntentId}",
+                                paymentIntent.Id, orderId, order.StripePaymentIntentId);
+                        }
+                        else
+                        {
+                            var expectedAmount = (long)(order.TotalAmount * 100);
+                            if (paymentIntent.Amount != expectedAmount || paymentIntent.Currency != "bam")
+                            {
+                                _logger.LogWarning("PaymentIntent {PaymentIntentId} amount/currency mismatch. Expected {Expected} bam, got {Actual} {Currency}",
+                                    paymentIntent.Id, expectedAmount, paymentIntent.Amount, paymentIntent.Currency);
+                            }
+                            else if (order.Status == OrderStatus.Pending)
+                            {
+                                result = new WebhookResult { Action = WebhookAction.MarkAsPaid, OrderId = orderId };
+                                _logger.LogInformation("Order {OrderId} should be marked as paid via Stripe webhook", orderId);
+                            }
+                        }
                     }
                 }
             }
-        }
-    }
-    else if (stripeEvent.Type == EventTypes.PaymentIntentPaymentFailed ||
-             stripeEvent.Type == "payment_intent.canceled")
-    {
-        var paymentIntent = stripeEvent.Data.Object as PaymentIntent;
-        if (paymentIntent?.Metadata.TryGetValue("orderId", out var orderIdStr) == true &&
-            int.TryParse(orderIdStr, out var orderId))
-        {
-            var order = await _dbContext.Orders.FirstOrDefaultAsync(o => o.Id == orderId);
-            if (order != null && order.StripePaymentIntentId == paymentIntent.Id && order.Status == OrderStatus.Pending)
+            else if (stripeEvent.Type == EventTypes.PaymentIntentPaymentFailed ||
+                     stripeEvent.Type == "payment_intent.canceled")
             {
-                await _orderService.CancelBySystemAsync(orderId);
-                _logger.LogInformation("Order {OrderId} cancelled via webhook", orderId);
+                var paymentIntent = stripeEvent.Data.Object as PaymentIntent;
+                if (paymentIntent?.Metadata.TryGetValue("orderId", out var orderIdStr) == true &&
+                    int.TryParse(orderIdStr, out var orderId))
+                {
+                    var order = await _dbContext.Orders.FirstOrDefaultAsync(o => o.Id == orderId);
+                    if (order != null && order.StripePaymentIntentId == paymentIntent.Id && order.Status == OrderStatus.Pending)
+                    {
+                        result = new WebhookResult { Action = WebhookAction.CancelOrder, OrderId = orderId };
+                        _logger.LogInformation("Order {OrderId} should be cancelled via webhook", orderId);
+                    }
+                }
             }
-        }
-    }
 
-    _dbContext.ProcessedStripeEvents.Add(new Database.ProcessedStripeEvent
-    {
-        StripeEventId = stripeEvent.Id,
-        ProcessedAt = DateTime.UtcNow
-    });
-    await _dbContext.SaveChangesAsync();
-}
+            _dbContext.ProcessedStripeEvents.Add(new Database.ProcessedStripeEvent
+            {
+                StripeEventId = stripeEvent.Id,
+                ProcessedAt = DateTime.UtcNow
+            });
+            await _dbContext.SaveChangesAsync();
+
+            return result;
+        }
 
         public async Task RefundPaymentAsync(string paymentIntentId)
         {

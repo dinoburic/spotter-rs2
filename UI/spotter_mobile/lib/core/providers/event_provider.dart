@@ -129,6 +129,8 @@ class EventProvider extends ChangeNotifier {
   }
 
   Future<void> loadTicketTypes(int eventId) async {
+    ticketTypes = [];
+    notifyListeners();
     try {
       final result = await _baseProvider.get<PageResult<TicketTypeResponse>>(
         ApiConstants.ticketTypes,

@@ -23,14 +23,16 @@ services:
   rabbitmq:
     image: rabbitmq:3.13-management
     container_name: spotter-rabbitmq
+    hostname: spotter-rabbitmq
+    user: rabbitmq
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
     ports:
       - "5672:5672"
       - "15672:15672"
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
+    tmpfs:
+      - /var/lib/rabbitmq
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 10s
@@ -105,4 +107,3 @@ networks:
 
 volumes:
   sqlserver_data:
-  rabbitmq_data:

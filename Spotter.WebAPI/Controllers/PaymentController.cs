@@ -13,11 +13,16 @@ namespace Spotter.WebAPI.Controllers
     public class PaymentController : ControllerBase
     {
         private readonly IStripeService _stripeService;
+        private readonly IOrderService _orderService;
         private readonly ILogger<PaymentController> _logger;
 
-        public PaymentController(IStripeService stripeService, ILogger<PaymentController> logger)
+        public PaymentController(
+            IStripeService stripeService,
+            IOrderService orderService,
+            ILogger<PaymentController> logger)
         {
             _stripeService = stripeService;
+            _orderService = orderService;
             _logger = logger;
         }
 
@@ -37,7 +42,23 @@ namespace Spotter.WebAPI.Controllers
 
             try
             {
-                await _stripeService.HandleWebhookAsync(payload, stripeSignature!);
+                var result = await _stripeService.HandleWebhookAsync(payload, stripeSignature!);
+
+                if (result.OrderId.HasValue)
+                {
+                    switch (result.Action)
+                    {
+                        case WebhookAction.MarkAsPaid:
+                            await _orderService.MarkAsPaidAsync(result.OrderId.Value);
+                            _logger.LogInformation("Order {OrderId} marked as paid via webhook", result.OrderId.Value);
+                            break;
+                        case WebhookAction.CancelOrder:
+                            await _orderService.CancelBySystemAsync(result.OrderId.Value);
+                            _logger.LogInformation("Order {OrderId} cancelled via webhook", result.OrderId.Value);
+                            break;
+                    }
+                }
+
                 return Ok();
             }
             catch (StripeException ex)

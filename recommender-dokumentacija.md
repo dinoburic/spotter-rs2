@@ -14,7 +14,7 @@ This document describes the design, implementation, and operation of the recomme
 
 The recommender system is one of the key features of Spotter. Its purpose is to increase user engagement by displaying events that match each user's individual tastes and behavior, rather than showing a generic list of all available events. The system answers a simple but important question for every user opening the mobile app: "Which of the hundreds of upcoming events should I actually care about?"
 
-The recommender is implemented as a background process inside the ASP.NET Core Web API using ML.NET — Microsoft's open-source machine learning framework for .NET. It uses a content-based filtering approach combined with a binary classification model (FastTree) trained on historical paid order data. Recommendations are exposed through a dedicated REST endpoint and consumed by the Flutter mobile application, which displays them in a horizontally scrollable "Recommended for you" section at the top of the Events tab.
+The recommender is implemented inside the ASP.NET Core Web API using ML.NET — Microsoft's open-source machine learning framework for .NET. It uses a content-based filtering approach combined with a binary classification model (FastTree) trained on historical paid order data. Model retraining is handled by a hosted background service. Recommendations are exposed through a dedicated REST endpoint and consumed by the Flutter mobile application, which displays them in a horizontally scrollable "Recommended for you" section at the top of the Events tab.
 
 ---
 
@@ -36,7 +36,7 @@ The recommender consists of four main components, all running inside the `Spotte
 
 ### 3.1. RecommendationService
 
-The core service that builds training data, trains the ML.NET pipeline, and produces recommendations on demand. It is registered as a singleton in the dependency injection container because the trained model is held in memory across requests.
+The core service that builds training data, trains the ML.NET pipeline, and produces recommendations on demand. It is registered as a scoped service in the dependency injection container. The trained ML.NET model, ML context, and training semaphore are held in static fields, so the trained model is shared across requests even though service instances are scoped.
 
 ### 3.2. RecommendationTrainingService
 
@@ -138,13 +138,13 @@ When a user opens the Events tab, the mobile app calls `GET /api/recommendations
 
 ## 5. Cold Start Problem
 
-The cold start problem occurs when a new user has no ticket purchase history, so the model has nothing to learn their taste from. Spotter handles this in three layers, in order of preference:
+The cold start problem occurs when a new user has no ticket purchase history, so the model has little behavioral data for that user. Spotter handles this by combining selected interests in the ML user profile with deterministic fallback scoring when the model is unavailable or when the user has neither history nor interests.
 
 ### 5.1. Layer 1 — Interest-Based Recommendations
 
-During registration, every user selects categories they are interested in (e.g. Music, Sport, Food). These selected categories are stored in the `UserInterests` table and are included in the user profile string passed to the model. This means that even on the very first session, recommendations can be biased toward events matching the user's declared preferences.
+During registration, every user selects categories they are interested in (e.g. Music, Sport, Food). These selected categories are stored in the `UserInterests` table and are included in the user profile string passed to the model. This means that even on the very first session, recommendations can be biased toward events matching the user's declared preferences when the ML model is available. If the model is not available, the same interests are used by the deterministic fallback scorer.
 
-When no purchase history exists, the service falls back to a deterministic interest-based scoring routine that ranks events by the following weighted criteria:
+If the ML model is not available after a training attempt, the service falls back to a deterministic interest-based scoring routine that ranks events by the following weighted criteria:
 
 - Category match against the user's selected interests (highest weight: +0.6).
 - Same city as the user's home city (+0.2).
@@ -152,11 +152,11 @@ When no purchase history exists, the service falls back to a deterministic inter
 
 ### 5.2. Layer 2 — Popularity in the User's City
 
-If the user has neither purchase history nor selected interests, the service falls back to pure popularity-based recommendations within the user's home city. Events with the highest ticket sales ratio in the user's city are surfaced first (+0.4 for city match, up to +0.5 for sales ratio).
+If the user has neither purchase history nor selected interests, the service falls back to popularity-based recommendations. Events in the user's city receive a higher score (+0.4), and events with higher ticket sales ratio receive additional weight (up to +0.5).
 
 ### 5.3. Layer 3 — Global Popularity
 
-As a last-resort fallback, if no city-local events exist, the service returns globally popular events sorted by ticket sales ratio. This guarantees the user never sees an empty recommendation section.
+As a last-resort fallback, if no city-local events exist, the same popularity scoring still considers all active upcoming candidate events. If there are no active upcoming non-deleted events at all, the service correctly returns an empty recommendation list.
 
 ---
 
@@ -169,6 +169,7 @@ Every recommendation returned to the user is accompanied by a short, human-reada
 | Event category matches a user interest | "Because you like {category}" |
 | User has attended at least one event | "Because you attended similar events" |
 | Event is in the user's home city | "Popular event in your city" |
+| Popularity fallback with no interests/history | "Popular in your area" |
 | Generic fallback | "Recommended for you" |
 
 ---
@@ -262,6 +263,6 @@ The current implementation is a content-based system tailored to the size and gr
 
 ## 10. Conclusion
 
-The Spotter recommender system delivers personalized event suggestions through a content-based ML.NET pipeline combining TF-IDF text featurization with a FastTree binary classifier, retrained automatically every 24 hours via the `RecommendationTrainingService` background service. The cold-start problem is handled through layered fallbacks based on user-declared interests, city, and global popularity. Every recommendation is accompanied by a human-readable explanation, satisfying the explainability requirement defined in the project proposal.
+The Spotter recommender system delivers personalized event suggestions through a content-based ML.NET pipeline combining TF-IDF text featurization with a FastTree binary classifier, retrained automatically every 24 hours via the `RecommendationTrainingService` background service. Cold-start behavior is handled by including user-declared interests in the user profile and by using deterministic fallback scoring based on interests, city, and popularity when needed. Every recommendation is accompanied by a human-readable explanation, satisfying the explainability requirement defined in the project proposal.
 
 The architecture is intentionally simple and self-contained — no external ML infrastructure is required, the model is trained and held in-memory inside the API process, and recommendations are produced with sub-second latency on a single request. This makes the system practical to deploy and operate as part of the broader Spotter platform without adding operational complexity.

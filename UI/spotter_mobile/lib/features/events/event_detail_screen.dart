@@ -29,6 +29,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   bool _isLoading = true;
   bool _isDescriptionExpanded = false;
   String? _distanceKm;
+  bool _locationPermissionDenied = false;
 
   @override
   void initState() {
@@ -69,6 +70,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
+        if (mounted) setState(() => _locationPermissionDenied = true);
         return;
       }
 
@@ -328,6 +330,18 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                         Text(
                           '$_distanceKm km away',
                           style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ] else if (_locationPermissionDenied) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(Icons.location_off, size: 16, color: Colors.grey[400]),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Enable location to see distance',
+                          style: TextStyle(color: Colors.grey[400], fontSize: 12),
                         ),
                       ],
                     ),

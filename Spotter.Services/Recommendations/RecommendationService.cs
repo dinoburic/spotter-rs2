@@ -16,11 +16,36 @@ namespace Spotter.Services
         private static ITransformer? _model;
         private static DateTime _lastTrainingTime = DateTime.MinValue;
         private static readonly SemaphoreSlim _trainingSemaphore = new SemaphoreSlim(1, 1);
+        private static readonly string _modelPath = Path.Combine(AppContext.BaseDirectory, "recommender-model.zip");
 
         public RecommendationService(SpotterDbContext dbContext, ILogger<RecommendationService> logger)
         {
             _dbContext = dbContext;
             _logger = logger;
+
+            if (_model == null)
+            {
+                _model = LoadModelFromDisk();
+            }
+        }
+
+        private ITransformer? LoadModelFromDisk()
+        {
+            try
+            {
+                if (File.Exists(_modelPath))
+                {
+                    using var stream = File.OpenRead(_modelPath);
+                    var loadedModel = _mlContext.Model.Load(stream, out _);
+                    _logger.LogInformation("ML model loaded from disk: {Path}", _modelPath);
+                    return loadedModel;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to load ML model from disk, will retrain");
+            }
+            return null;
         }
 
         public async Task TrainModelAsync()
@@ -54,6 +79,17 @@ namespace Spotter.Services
 
                 _model = pipeline.Fit(dataView);
                 _lastTrainingTime = DateTime.UtcNow;
+
+                try
+                {
+                    using var stream = File.Create(_modelPath);
+                    _mlContext.Model.Save(_model, dataView.Schema, stream);
+                    _logger.LogInformation("ML model saved to disk: {Path}", _modelPath);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to save ML model to disk");
+                }
 
                 _logger.LogInformation("ML.NET model trained successfully with {Count} samples", trainingData.Count);
             }

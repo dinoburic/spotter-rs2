@@ -28,15 +28,9 @@ namespace Spotter.Services
             _configuration = configuration;
             _logger = logger;
 
-            StripeConfiguration.ApiKey = Environment.GetEnvironmentVariable("STRIPE_SECRET_KEY")
-                ?? configuration["Stripe:SecretKey"]
-                ?? throw new InvalidOperationException("Stripe secret key not configured.");
-
             _webhookSecret = Environment.GetEnvironmentVariable("STRIPE_WEBHOOK_SECRET")
                 ?? configuration["Stripe:WebhookSecret"]
                 ?? string.Empty;
-
-            _logger.LogInformation("Stripe webhook secret configured: {HasSecret}", !string.IsNullOrEmpty(_webhookSecret));
         }
 
         public async Task<PaymentIntentResponse> CreatePaymentIntentAsync(int orderId)

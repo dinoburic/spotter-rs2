@@ -126,11 +126,19 @@ namespace Spotter.Services
                 throw new NotFoundException($"User with id {id} not found.");
             }
 
-            if (await _dbContext.Users.AnyAsync(u => u.Email == request.Email && u.Id != id))
-                throw new ClientException($"Email '{request.Email}' is already in use.");
+            if (!string.IsNullOrWhiteSpace(request.Email) && request.Email != entity.Email)
+            {
+                var emailTaken = await _dbContext.Users.AnyAsync(u => u.Email == request.Email && u.Id != id && !u.IsDeleted);
+                if (emailTaken)
+                    throw new ClientException($"Email '{request.Email}' is already in use.");
+            }
 
-            if (await _dbContext.Users.AnyAsync(u => u.Username == request.Username && u.Id != id))
-                throw new ClientException($"Username '{request.Username}' is already in use.");
+            if (!string.IsNullOrWhiteSpace(request.Username) && request.Username != entity.Username)
+            {
+                var usernameTaken = await _dbContext.Users.AnyAsync(u => u.Username == request.Username && u.Id != id && !u.IsDeleted);
+                if (usernameTaken)
+                    throw new ClientException($"Username '{request.Username}' is already in use.");
+            }
 
             MapUpdateRequestToEntity(request, entity);
 
@@ -182,6 +190,23 @@ namespace Spotter.Services
                 .Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
                 .FirstOrDefaultAsync(u => u.Id == id);
+
+            if (user == null)
+                return null;
+
+            var response = _mapper.Map<UserResponse>(user);
+            response.Role = user.UserRoles?.FirstOrDefault()?.Role?.Name ?? Model.Static.Roles.User;
+            return response;
+        }
+
+        public async Task<UserResponse?> GetActiveByIdAsync(int id)
+        {
+            var user = await _dbContext.Users
+                .AsNoTracking()
+                .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
+                .Include(u => u.City)
+                .FirstOrDefaultAsync(u => u.Id == id && u.IsActive && !u.IsDeleted);
 
             if (user == null)
                 return null;

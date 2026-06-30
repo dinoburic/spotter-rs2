@@ -82,9 +82,9 @@ namespace Spotter.Services
             if (storedToken == null)
                 throw new ClientException("Invalid or expired refresh token.");
 
-            var user = await _userService.GetWithRoleByIdAsync(storedToken.UserId);
+            var user = await _userService.GetActiveByIdAsync(storedToken.UserId);
             if (user == null)
-                throw new NotFoundException("User not found.");
+                throw new UnauthorizedException("User not found or account is deactivated.");
 
             await _refreshTokenService.DeleteAllUserRefreshTokensAsync(storedToken.UserId);
 
@@ -125,7 +125,7 @@ namespace Spotter.Services
                 {
                     TokenJti = jti,
                     InvalidatedAt = DateTime.UtcNow,
-                    ExpiresAt = DateTime.UtcNow.AddMinutes(60),
+                    ExpiresAt = DateTime.UtcNow.AddMinutes(65),
                     UserId = userId
                 });
             }

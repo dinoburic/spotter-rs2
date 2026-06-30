@@ -61,9 +61,6 @@ namespace Spotter.Services
             _waitlistService = waitlistService;
             _configuration = configuration;
             _logger = logger;
-
-            StripeConfiguration.ApiKey = Environment.GetEnvironmentVariable("STRIPE_SECRET_KEY")
-                ?? configuration["Stripe:SecretKey"];
         }
 
         public async Task<PageResult<OrderResponse>> GetAllAsync(OrderSearch? search = null)
@@ -251,28 +248,10 @@ namespace Spotter.Services
 
                     if (isZeroAmount)
                     {
-                        var ticketCount = 0;
-                        var orderItems = await _dbContext.OrderItems
-                            .Where(oi => oi.OrderId == order.Id)
-                            .ToListAsync();
-
-                        foreach (var orderItem in orderItems)
-                        {
-                            for (int i = 0; i < orderItem.Quantity; i++)
-                            {
-                                var ticket = new Ticket
-                                {
-                                    UserId = order.UserId,
-                                    OrderItemId = orderItem.Id,
-                                    QrCodePayload = GenerateQrPayload(order.Id, orderItem.Id, orderItem.TicketTypeId),
-                                    Status = TicketStatus.Active,
-                                    IssuedAt = DateTime.UtcNow
-                                };
-                                _dbContext.Tickets.Add(ticket);
-                                ticketCount++;
-                            }
-                        }
-                        await _dbContext.SaveChangesAsync();
+                        var orderWithItems = await _dbContext.Orders
+                            .Include(o => o.OrderItems)
+                            .FirstAsync(o => o.Id == order.Id);
+                        var ticketCount = await IssueTicketsForOrderAsync(orderWithItems);
                         _logger.LogInformation("Zero-amount order {OrderId}: {Count} tickets issued immediately", order.Id, ticketCount);
                     }
 
@@ -353,25 +332,7 @@ namespace Spotter.Services
             {
                 _orderStateMachine.Transition(order, OrderStatus.Paid);
 
-                var ticketCount = 0;
-                foreach (var orderItem in order.OrderItems)
-                {
-                    for (int i = 0; i < orderItem.Quantity; i++)
-                    {
-                        var ticket = new Ticket
-                        {
-                            UserId = order.UserId,
-                            OrderItemId = orderItem.Id,
-                            QrCodePayload = GenerateQrPayload(order.Id, orderItem.Id, orderItem.TicketTypeId),
-                            Status = TicketStatus.Active,
-                            IssuedAt = DateTime.UtcNow
-                        };
-                        _dbContext.Tickets.Add(ticket);
-                        ticketCount++;
-                    }
-                }
-
-                await _dbContext.SaveChangesAsync();
+                var ticketCount = await IssueTicketsForOrderAsync(order);
 
                 var pointsToEarn = Math.Max(1, (int)Math.Floor(order.TotalAmount / 10));
                 await _spotterPointsService.EarnAsync(
@@ -428,6 +389,15 @@ namespace Spotter.Services
                 _logger.LogWarning("Order {OrderId} not found", id);
                 throw new NotFoundException("Order not found.");
             }
+
+            if (order.Status == OrderStatus.Refunded)
+            {
+                _logger.LogInformation("Order {OrderId} already refunded, returning existing state", id);
+                return _mapper.Map<OrderResponse>(order);
+            }
+
+            if (order.RefundStatus == "Processing" || order.RefundStatus == "Completed")
+                throw new ClientException("Refund is already in progress or completed for this order.");
 
             if (order.Status != OrderStatus.Paid)
                 throw new ClientException("Only paid orders can be refunded.");
@@ -613,6 +583,29 @@ namespace Spotter.Services
             _logger.LogInformation("Order {OrderId} cancelled by system (webhook)", orderId);
         }
 
+        private async Task<int> IssueTicketsForOrderAsync(Order order)
+        {
+            var ticketCount = 0;
+            foreach (var orderItem in order.OrderItems)
+            {
+                for (int i = 0; i < orderItem.Quantity; i++)
+                {
+                    var ticket = new Ticket
+                    {
+                        UserId = order.UserId,
+                        OrderItemId = orderItem.Id,
+                        QrCodePayload = GenerateQrPayload(order.Id, orderItem.Id, orderItem.TicketTypeId),
+                        Status = TicketStatus.Active,
+                        IssuedAt = DateTime.UtcNow
+                    };
+                    _dbContext.Tickets.Add(ticket);
+                    ticketCount++;
+                }
+            }
+            await _dbContext.SaveChangesAsync();
+            return ticketCount;
+        }
+
         private static string GenerateQrPayload(int orderId, int orderItemId, int ticketTypeId)
         {
             var raw = $"SPOTTER-{orderId}-{orderItemId}-{ticketTypeId}-{Guid.NewGuid():N}";
@@ -623,7 +616,6 @@ namespace Spotter.Services
         {
             try
             {
-                StripeConfiguration.ApiKey = _configuration["Stripe__SecretKey"] ?? _configuration["Stripe:SecretKey"];
                 var service = new PaymentIntentService();
                 var intent = await service.GetAsync(paymentIntentId);
                 if (intent.Status != "succeeded" && intent.Status != "canceled")

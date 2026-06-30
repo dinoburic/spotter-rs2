@@ -221,20 +221,49 @@ namespace Spotter.Services
             }
 
             if (review.UserId != _currentUserService.GetUserId() && !_currentUserService.IsAdmin())
-                throw new ClientException("You can only delete your own reviews.");
+                throw new ForbiddenException("You can only delete your own reviews.");
 
             review.IsDeleted = true;
             review.DeletedAt = DateTime.UtcNow;
-            await _dbContext.SaveChangesAsync();
 
-            var balance = await _dbContext.SpotterPoints
-                .Where(sp => sp.UserId == review.UserId)
-                .SumAsync(sp => sp.Delta);
+            var earnedEntry = await _dbContext.SpotterPoints
+                .FirstOrDefaultAsync(sp =>
+                    sp.UserId == review.UserId &&
+                    sp.Source == PointSource.Review &&
+                    sp.ReferenceId == review.Id &&
+                    sp.Delta > 0);
 
-            if (balance >= 10)
+            if (earnedEntry != null)
             {
-                await _spotterPointsService.RedeemAsync(review.UserId, 10, review.Id.ToString());
+                var currentBalance = await _dbContext.SpotterPoints
+                    .Where(sp => sp.UserId == review.UserId)
+                    .SumAsync(sp => sp.Delta);
+
+                var pointsToDeduct = Math.Min(earnedEntry.Delta, currentBalance);
+
+                if (pointsToDeduct > 0)
+                {
+                    _dbContext.SpotterPoints.Add(new SpotterPoints
+                    {
+                        UserId = review.UserId,
+                        Delta = -pointsToDeduct,
+                        Source = PointSource.Review,
+                        ReferenceId = review.Id,
+                        Description = $"Points reversed for deleted review",
+                        CreatedAt = DateTime.UtcNow
+                    });
+
+                    var user = await _dbContext.Users.FindAsync(review.UserId);
+                    if (user != null)
+                    {
+                        user.SpotterPointsBalance -= pointsToDeduct;
+                    }
+
+                    _logger.LogInformation("Reversed {Points} points for deleted review {ReviewId}", pointsToDeduct, id);
+                }
             }
+
+            await _dbContext.SaveChangesAsync();
             _logger.LogInformation("Review {ReviewId} deleted (soft) successfully", id);
         }
     }

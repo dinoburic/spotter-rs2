@@ -29,6 +29,7 @@ namespace Spotter.WebAPI.Controllers
         }
 
         [HttpPost("refresh")]
+        [AllowAnonymous]
         public async Task<ActionResult<UserLoginResponse>> Refresh([FromBody] RefreshAccessTokenRequest request)
         {
             var result = await _accessService.LoginWithRefreshTokenAsync(request.RefreshToken);

@@ -101,21 +101,27 @@ namespace Spotter.WebAPI.Controllers
             if (file == null || file.Length == 0)
                 throw new ClientException("No file uploaded.");
 
+            const long maxFileSizeBytes = 5 * 1024 * 1024;
+            if (file.Length > maxFileSizeBytes)
+                throw new ClientException("Image file too large. Maximum size is 5 MB.");
+
             var allowedMimeTypes = new[] { "image/jpeg", "image/png", "image/webp" };
             if (!allowedMimeTypes.Contains(file.ContentType.ToLower()))
                 throw new ClientException("Only JPEG, PNG, and WebP images are allowed.");
 
             using var stream = file.OpenReadStream();
-            var buffer = new byte[4];
-            await stream.ReadExactlyAsync(buffer);
+            var buffer = new byte[12];
+            var bytesRead = await stream.ReadAsync(buffer, 0, 12);
             stream.Position = 0;
 
-            var isJpeg = buffer[0] == 0xFF && buffer[1] == 0xD8;
-            var isPng = buffer[0] == 0x89 && buffer[1] == 0x50;
-            var isWebP = buffer[0] == 0x52 && buffer[1] == 0x49;
+            var isJpeg = bytesRead >= 3 && buffer[0] == 0xFF && buffer[1] == 0xD8 && buffer[2] == 0xFF;
+            var isPng = bytesRead >= 8 && buffer[0] == 0x89 && buffer[1] == 0x50 && buffer[2] == 0x4E && buffer[3] == 0x47;
+            var isWebP = bytesRead >= 12 &&
+                         buffer[0] == 0x52 && buffer[1] == 0x49 && buffer[2] == 0x46 && buffer[3] == 0x46 &&
+                         buffer[8] == 0x57 && buffer[9] == 0x45 && buffer[10] == 0x42 && buffer[11] == 0x50;
 
             if (!isJpeg && !isPng && !isWebP)
-                throw new ClientException("Invalid image file.");
+                throw new ClientException("Invalid image file. Only JPEG, PNG, and WebP are supported.");
 
             var url = await _eventService.UploadCoverImageAsync(id, file, _webHostEnvironment.WebRootPath);
             return Ok(new { url });

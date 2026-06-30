@@ -39,6 +39,13 @@ if (string.IsNullOrWhiteSpace(connectionString))
     throw new InvalidOperationException("Connection string not configured.");
 }
 
+var stripeSecretKey = Environment.GetEnvironmentVariable("STRIPE_SECRET_KEY")
+    ?? builder.Configuration["Stripe:SecretKey"];
+if (!string.IsNullOrWhiteSpace(stripeSecretKey))
+{
+    Stripe.StripeConfiguration.ApiKey = stripeSecretKey;
+}
+
 builder.Services.AddDbContext<SpotterDbContext>(options =>
     options.UseSqlServer(connectionString)
 );
@@ -259,11 +266,15 @@ builder.Services.AddAuthentication(options =>
 });
 builder.Services.AddAuthorization();
 
+var corsOrigins = Environment.GetEnvironmentVariable("CORS_ALLOWED_ORIGINS")?.Split(',')
+    ?? builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? new[] { "http://localhost:5126", "http://10.0.2.2:5126", "http://localhost:3000" };
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("SpotterPolicy", policy =>
     {
-        policy.WithOrigins("http://localhost:5126", "http://10.0.2.2:5126", "http://localhost:3000")
+        policy.WithOrigins(corsOrigins)
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();

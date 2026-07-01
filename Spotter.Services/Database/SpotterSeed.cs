@@ -16,7 +16,6 @@ namespace Spotter.Services.Database
             SeedVenues(modelBuilder);
             SeedEvents(modelBuilder);
             SeedTicketTypes(modelBuilder);
-            SeedSystemSettings(modelBuilder);
         }
 
         private void SeedCities(ModelBuilder modelBuilder)
@@ -357,26 +356,6 @@ namespace Spotter.Services.Database
                 new { Id = 10, EventId = 5, Name = "VIP",     Price = 20.00m, TotalQuantity = 300,  SoldQuantity = 0, TypeEnum = TicketTypeEnum.VIP },
                 new { Id = 11, EventId = 6, Name = "Regular", Price = 12.00m, TotalQuantity = 500,  SoldQuantity = 0, TypeEnum = TicketTypeEnum.Regular },
                 new { Id = 12, EventId = 6, Name = "VIP",     Price = 30.00m, TotalQuantity = 100,  SoldQuantity = 0, TypeEnum = TicketTypeEnum.VIP }
-            );
-        }
-
-        private void SeedSystemSettings(ModelBuilder modelBuilder)
-        {
-            modelBuilder.Entity<SystemSetting>().HasData(
-                new
-                {
-                    Id = 1,
-                    Key = "AppName",
-                    Value = "Spotter",
-                    UpdatedAt = new DateTime(2026, 4, 26, 0, 0, 0, DateTimeKind.Utc)
-                },
-                new
-                {
-                    Id = 2,
-                    Key = "DefaultCurrency",
-                    Value = "BAM",
-                    UpdatedAt = new DateTime(2026, 4, 26, 0, 0, 0, DateTimeKind.Utc)
-                }
             );
         }
     }

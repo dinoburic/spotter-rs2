@@ -16,7 +16,6 @@ import '../features/tickets/ticket_scanner_screen.dart';
 import '../features/reservations/reservation_list_screen.dart';
 import '../features/reviews/review_list_screen.dart';
 import '../features/reports/reports_screen.dart';
-import '../features/settings/settings_screen.dart';
 import 'confirm_dialog.dart';
 
 class SpotterDrawer extends StatelessWidget {
@@ -162,15 +161,6 @@ class SpotterDrawer extends StatelessWidget {
                   title: 'Reports',
                   route: 'reports',
                   screen: const ReportsScreen(),
-                ),
-                const Divider(),
-                _buildSectionHeader(context, 'Configuration'),
-                _buildNavItem(
-                  context,
-                  icon: Icons.settings,
-                  title: 'Settings',
-                  route: 'settings',
-                  screen: const SettingsScreen(),
                 ),
               ],
             ),

@@ -12,8 +12,8 @@ using Spotter.Services.Database;
 namespace Spotter.Services.Migrations
 {
     [DbContext(typeof(SpotterDbContext))]
-    [Migration("20260628183256_PendingChanges")]
-    partial class PendingChanges
+    [Migration("20260701185240_FixPendingChanges")]
+    partial class FixPendingChanges
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -967,6 +967,10 @@ namespace Spotter.Services.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("Key")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -986,22 +990,6 @@ namespace Spotter.Services.Migrations
                         .IsUnique();
 
                     b.ToTable("SystemSettings");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            Key = "AppName",
-                            UpdatedAt = new DateTime(2026, 4, 26, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Value = "Spotter"
-                        },
-                        new
-                        {
-                            Id = 2,
-                            Key = "DefaultCurrency",
-                            UpdatedAt = new DateTime(2026, 4, 26, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Value = "BAM"
-                        });
                 });
 
             modelBuilder.Entity("Spotter.Services.Database.Ticket", b =>
